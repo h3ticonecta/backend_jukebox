@@ -65,16 +65,16 @@ Quando a API REST for implementada, erros seguirão este formato:
 |---|---|---|
 | Endpoints públicos (`/`, `/health/`) | Nenhum | Implementado |
 | Django Admin (`/admin/`) | Sessão + CSRF (cookie) | Implementado |
-| API para frontend | A definir (JWT ou token) | Planejado |
+| API para frontend | Token (`Authorization: Token <token>`) | Implementado |
+
+Obter token: `POST /api/v1/auth/token/`
 
 ## CORS (status atual)
 
-CORS **ainda não está configurado**. O frontend hospedado em domínio diferente pode receber erro de CORS ao chamar a API.
-
-Quando o frontend estiver pronto para integrar, o backend adicionará:
+Configurado via variável de ambiente:
 
 ```
-CORS_ALLOWED_ORIGINS=https://<dominio-do-frontend>
+CORS_ALLOWED_ORIGINS=https://<dominio-do-frontend>,http://localhost:5173
 ```
 
 ## Versionamento (planejado)

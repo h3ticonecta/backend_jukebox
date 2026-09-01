@@ -9,6 +9,14 @@
 | 01 | `GET` | `/` | [01-service-info.md](./01-service-info.md) | Implementado |
 | 02 | `GET` | `/health/` | [02-health-check.md](./02-health-check.md) | Implementado |
 
+## Endpoints autenticados (Token)
+
+| ID | Método | Endpoint | Contrato | Status |
+|---|---|---|---|---|
+| 03 | `POST` | `/api/v1/auth/token/` | [03-auth-token.md](./03-auth-token.md) | Implementado |
+| 04 | `CRUD` | `/api/v1/buckets/` | [04-buckets-crud.md](./04-buckets-crud.md) | Implementado |
+| 05 | `Vários` | `/api/v1/buckets/{id}/objects/` | [05-bucket-objects.md](./05-bucket-objects.md) | Implementado |
+
 ## Endpoints internos (não para frontend)
 
 | Método | Endpoint | Descrição |

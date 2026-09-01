@@ -8,6 +8,8 @@ def index(request):
         'endpoints': {
             'health': '/health/',
             'admin': '/admin/',
+            'api_v1': '/api/v1/',
+            'buckets': '/api/v1/buckets/',
         },
     })
 

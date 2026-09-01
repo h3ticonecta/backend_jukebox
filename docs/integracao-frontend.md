@@ -16,8 +16,29 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 |---|---|---|
 | [Service Info](./contratos/01-service-info.md) | `GET /` | Verificar se a API está no ar |
 | [Health Check](./contratos/02-health-check.md) | `GET /health/` | Monitoramento / status page |
+| [Auth Token](./contratos/03-auth-token.md) | `POST /api/v1/auth/token/` | Obter token de autenticação |
+| [Buckets CRUD](./contratos/04-buckets-crud.md) | `/api/v1/buckets/` | Cadastrar conexões S3/R2 |
+| [Bucket Objects](./contratos/05-bucket-objects.md) | `/api/v1/buckets/{id}/objects/` | Gerenciar arquivos no bucket |
 
-## 3. Exemplo de integração
+## 3. Fluxo de autenticação
+
+```typescript
+// auth.ts
+export async function getApiToken(username: string, password: string): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/token/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+
+  if (!response.ok) throw new Error('Falha na autenticação');
+
+  const data = await response.json();
+  return data.token;
+}
+```
+
+## 4. Exemplo de integração
 
 ```typescript
 // health.ts
@@ -50,41 +71,47 @@ export async function getServiceInfo(): Promise<ServiceInfo> {
 }
 ```
 
-## 4. O que **não** implementar no frontend agora
+## 5. O que **não** implementar no frontend agora
 
 | Item | Motivo |
 |---|---|
 | Login via `/admin/` | É interface HTML do Django, não API |
-| Upload de músicas | Endpoint ainda não existe |
 | Fila de reprodução | Endpoint ainda não existe |
 | Votação de músicas | Endpoint ainda não existe |
+| Metadados de músicas (CRUD) | Endpoint ainda não existe |
 
 Consulte o [Roadmap](./roadmap.md) para funcionalidades futuras.
 
-## 5. CORS
+## 6. CORS
 
-Antes de integrar em produção, informe ao backend:
+Configure no backend a variável:
 
-- URL do frontend no Railway (ex: `https://frontend-jukebox-dev.up.railway.app`)
+```
+CORS_ALLOWED_ORIGINS=https://seu-frontend.up.railway.app,http://localhost:5173
+```
 
-O backend configurará `CORS_ALLOWED_ORIGINS` para permitir requisições cross-origin.
-
-## 6. Checklist de integração
+## 7. Checklist de integração
 
 - [ ] Configurar `API_BASE_URL` no `.env` do frontend
 - [ ] Implementar health check na inicialização do app
+- [ ] Implementar autenticação via token (`/api/v1/auth/token/`)
+- [ ] Implementar gestão de buckets conforme contratos 04 e 05
 - [ ] Tratar erros de rede (API offline)
-- [ ] Aguardar contratos de autenticação antes de implementar login
-- [ ] Aguardar contratos de músicas/fila antes de implementar player
 
-## 7. Testar manualmente
+## 8. Testar manualmente
 
 ```bash
+# Obter token
+curl -X POST https://backendjukebox-dev.up.railway.app/api/v1/auth/token/ \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"sua-senha"}'
+
+# Listar buckets
+curl https://backendjukebox-dev.up.railway.app/api/v1/buckets/ \
+  -H "Authorization: Token <token>"
+
 # Health check
 curl https://backendjukebox-dev.up.railway.app/health/
-
-# Service info
-curl https://backendjukebox-dev.up.railway.app/
 ```
 
 Respostas esperadas estão nos contratos individuais.

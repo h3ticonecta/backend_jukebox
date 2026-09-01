@@ -1,39 +1,41 @@
 # Roadmap — Funcionalidades Planejadas
 
-Itens discutidos na arquitetura mas **ainda não implementados**. O frontend deve aguardar os contratos correspondentes antes de integrar.
+Itens **ainda não implementados**. O frontend deve aguardar os contratos correspondentes antes de integrar.
+
+## Já implementado
+
+| Funcionalidade | Contrato |
+|---|---|
+| Autenticação por Token | [03-auth-token.md](./contratos/03-auth-token.md) |
+| Buckets S3/R2 (CRUD) | [04-buckets-crud.md](./contratos/04-buckets-crud.md) |
+| Objetos do bucket (listar, upload, mover, excluir) | [05-bucket-objects.md](./contratos/05-bucket-objects.md) |
+| CORS | Configurado via `CORS_ALLOWED_ORIGINS` |
 
 ## Próximas entregas (backend)
 
 | Prioridade | Funcionalidade | Descrição |
 |---|---|---|
-| Alta | CORS | Permitir requisições do domínio do frontend |
-| Alta | Autenticação API | Login/logout para usuários do app (JWT ou similar) |
-| Alta | CRUD de músicas | Upload, listagem, detalhe, remoção |
-| Média | Cloudflare R2 | Armazenamento de arquivos de áudio |
+| Alta | CRUD de músicas | Metadados de músicas vinculados ao bucket |
 | Média | Fila de reprodução | Adicionar, remover, ordenar músicas na fila |
 | Média | Votação / pedidos | Usuários solicitam músicas |
-| Baixa | Versionamento `/api/v1/` | Prefixo de versão nos endpoints |
+| Baixa | JWT / refresh token | Substituir ou complementar autenticação por token |
 
 ## Contratos futuros (a serem criados)
 
-Quando implementados, novos arquivos serão adicionados em `docs/contratos/`:
-
 ```
 docs/contratos/
-├── 03-auth-login.md
-├── 04-auth-logout.md
-├── 05-musicas-listar.md
-├── 06-musicas-upload.md
-├── 07-fila-listar.md
-├── 08-fila-adicionar.md
+├── 06-musicas-listar.md
+├── 07-musicas-criar.md
+├── 08-fila-listar.md
+├── 09-fila-adicionar.md
 └── ...
 ```
 
-## Dependências externas pendentes
+## Dependências externas
 
 | Serviço | Uso | Status |
 |---|---|---|
-| Cloudflare R2 | Armazenar arquivos `.mp3`, `.wav`, etc. | Não configurado |
+| Cloudflare R2 / AWS S3 | Armazenar arquivos de áudio | Integrado via módulo buckets |
 | PostgreSQL | Dados relacionais | Configurado no Railway |
 
 ## Como solicitar novos contratos
