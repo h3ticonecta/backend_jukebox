@@ -16,7 +16,7 @@ class BucketConfigAdmin(admin.ModelAdmin):
             'fields': ('name', 'provider', 'is_active'),
         }),
         ('Conexão', {
-            'fields': ('endpoint_url', 'bucket_name', 'region_name'),
+            'fields': ('endpoint_url', 'public_base_url', 'bucket_name', 'region_name'),
         }),
         ('Credenciais', {
             'fields': ('access_key_id', 'secret_access_key'),

@@ -10,6 +10,7 @@ def index(request):
             'admin': '/admin/',
             'api_v1': '/api/v1/',
             'buckets': '/api/v1/buckets/',
+            'musicas': '/api/v1/musicas/',
         },
     })
 

@@ -49,7 +49,8 @@ GET /api/v1/buckets/{id}/objects/?prefix=musicas/&max_keys=100&continuation_toke
       "key": "musicas/song.mp3",
       "size": 5242880,
       "last_modified": "2026-09-01T18:00:00+00:00",
-      "etag": "d41d8cd98f00b204e9800998ecf8427e"
+      "etag": "d41d8cd98f00b204e9800998ecf8427e",
+      "public_url": "https://pub-xxxxx.r2.dev/musicas/song.mp3"
     }
   ],
   "folders": ["musicas/album1/"],

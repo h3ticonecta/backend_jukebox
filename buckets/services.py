@@ -43,6 +43,7 @@ class S3BucketService:
                     'size': item['Size'],
                     'last_modified': item['LastModified'].isoformat(),
                     'etag': item['ETag'].strip('"'),
+                    'public_url': self.bucket_config.get_public_url(item['Key']),
                 }
                 for item in response.get('Contents', [])
             ]

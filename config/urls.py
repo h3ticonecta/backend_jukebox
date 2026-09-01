@@ -24,4 +24,5 @@ urlpatterns = [
     path('health/', health, name='health'),
     path('admin/', admin.site.urls),
     path('api/v1/', include('buckets.urls')),
+    path('api/v1/', include('musicas.urls')),
 ]

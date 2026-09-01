@@ -24,11 +24,12 @@ Este repositório contém o **backend** do projeto Jukebox, construído com **Dj
 | API pública JSON (`/`, `/health/`) | Implementado |
 | Django Admin (`/admin/`) | Implementado |
 | Módulo Buckets S3/R2 (`/api/v1/buckets/`) | Implementado |
+| Módulo Músicas (`/api/v1/musicas/`) | Implementado |
 | Autenticação por Token (`/api/v1/auth/token/`) | Implementado |
 | PostgreSQL (produção) | Implementado |
 | Deploy Railway | Implementado |
 | CORS | Implementado (via `CORS_ALLOWED_ORIGINS`) |
-| API REST de músicas/fila | Planejado |
+| API REST de músicas/fila | Músicas implementado / Fila planejado |
 | Cloudflare R2 (armazenamento) | Implementado (via módulo buckets) |
 
 ## Base URL (dev)

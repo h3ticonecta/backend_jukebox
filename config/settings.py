@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'corsheaders',
     'buckets.apps.BucketsConfig',
+    'musicas.apps.MusicasConfig',
 ]
 
 MIDDLEWARE = [

@@ -15,6 +15,11 @@ class BucketConfig(models.Model):
         default=BucketProvider.CLOUDFLARE_R2,
     )
     endpoint_url = models.URLField('URL do endpoint')
+    public_base_url = models.URLField(
+        'URL pública',
+        blank=True,
+        help_text='Ex: https://pub-xxxxx.r2.dev — usada para URLs públicas de arquivos',
+    )
     bucket_name = models.CharField('nome do bucket', max_length=255)
     access_key_id = models.CharField('access key', max_length=255)
     secret_access_key = models.CharField('secret key', max_length=255)
@@ -30,3 +35,10 @@ class BucketConfig(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.bucket_name})'
+
+    def get_public_url(self, key):
+        if not self.public_base_url or not key:
+            return None
+        base = self.public_base_url.rstrip('/')
+        path = key.lstrip('/')
+        return f'{base}/{path}'
