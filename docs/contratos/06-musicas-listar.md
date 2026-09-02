@@ -11,9 +11,15 @@
 
 ## Descrição
 
-Lista **pastas e músicas diretamente do R2**, navegando pela estrutura do bucket. Endpoint principal para a aba de músicas no frontend.
+Retorna a biblioteca de músicas do R2 com:
 
-Por padrão, inicia em `jukebox/Musicas/` (configurável no bucket via `music_root_prefix`).
+- **`tree`** — árvore de pastas e subpastas
+- **`musicas`** — mídias da pasta atual (lista)
+- **`musicas_list`** — todas as mídias em lista plana (identificação/busca)
+
+Suporta arquivos **`.mp3`** (áudio) e **`.mp4`** (videoclipe).
+
+Raiz padrão: `jukebox/Musicas/` (configurável via `music_root_prefix` no bucket).
 
 ## Autenticação
 
@@ -23,10 +29,8 @@ Obrigatória — `Authorization: Token <token>`
 
 | Param | Tipo | Descrição |
 |---|---|---|
-| `prefix` | `string` | Pasta atual (ex: `jukebox/Musicas/Rock/`). Omitir para raiz das músicas |
+| `prefix` | `string` | Pasta atual (ex: `jukebox/Musicas/Rock/`). Omitir para raiz |
 | `bucket_id` | `integer` | ID do bucket. Padrão: bucket `jukebox` ativo |
-| `max_keys` | `integer` | Máximo de itens (padrão: 100, máx: 1000) |
-| `continuation_token` | `string` | Paginação S3 |
 
 ## Response — Sucesso (`200 OK`)
 
@@ -37,6 +41,17 @@ Obrigatória — `Authorization: Token <token>`
   "root_path": "jukebox/Musicas/",
   "current_path": "jukebox/Musicas/",
   "parent_path": null,
+  "tree": {
+    "name": "Musicas",
+    "path": "jukebox/Musicas/",
+    "children": [
+      {
+        "name": "Rock",
+        "path": "jukebox/Musicas/Rock/",
+        "children": []
+      }
+    ]
+  },
   "folders": [
     {
       "name": "Rock",
@@ -48,48 +63,72 @@ Obrigatória — `Authorization: Token <token>`
       "name": "song.mp3",
       "title": "song",
       "key": "jukebox/Musicas/song.mp3",
+      "folder_path": "jukebox/Musicas/",
+      "extension": ".mp3",
+      "media_type": "audio",
+      "media_url": "https://pub-xxxxx.r2.dev/jukebox/Musicas/song.mp3",
       "audio_url": "https://pub-xxxxx.r2.dev/jukebox/Musicas/song.mp3",
       "size": 5242880,
       "last_modified": "2026-09-01T18:00:00+00:00"
+    },
+    {
+      "name": "clip.mp4",
+      "title": "clip",
+      "key": "jukebox/Musicas/clip.mp4",
+      "folder_path": "jukebox/Musicas/",
+      "extension": ".mp4",
+      "media_type": "video",
+      "media_url": "https://pub-xxxxx.r2.dev/jukebox/Musicas/clip.mp4",
+      "audio_url": "https://pub-xxxxx.r2.dev/jukebox/Musicas/clip.mp4",
+      "size": 15728640,
+      "last_modified": "2026-09-01T18:00:00+00:00"
     }
   ],
-  "is_truncated": false,
-  "next_continuation_token": null
+  "musicas_list": [],
+  "totals": {
+    "folders": 3,
+    "musicas": 25,
+    "audio": 20,
+    "video": 5
+  }
 }
 ```
 
-### Campos
+### Campos principais
 
-| Campo | Descrição |
+| Campo | Uso no frontend |
 |---|---|
-| `root_path` | Pasta raiz das músicas no bucket |
-| `current_path` | Pasta sendo exibida |
-| `parent_path` | Pasta pai (`null` na raiz) |
-| `folders` | Subpastas para navegação |
-| `musicas` | Arquivos de áudio da pasta atual (`.mp3`, `.wav`, `.ogg`, `.m4a`, `.flac`) |
+| `tree` | Componente de árvore (sidebar) |
+| `folders` | Pastas do nível atual |
+| `musicas` | Lista da pasta selecionada |
+| `musicas_list` | Lista completa para busca/identificação |
+| `media_type` | `audio` (mp3) ou `video` (mp4) |
+| `media_url` | URL para player (`<audio>` ou `<video>`) |
+
+## Tipos de mídia
+
+| Extensão | `media_type` | Player |
+|---|---|---|
+| `.mp3` | `audio` | `<audio src={media_url} />` |
+| `.mp4` | `video` | `<video src={media_url} />` |
+| `.wav`, `.ogg`, `.m4a`, `.flac` | `audio` | `<audio>` |
 
 ## Navegação no frontend
 
-1. **Carregar raiz:** `GET /api/v1/musicas/browse/`
-2. **Entrar em pasta:** `GET /api/v1/musicas/browse/?prefix=jukebox/Musicas/Rock/`
-3. **Voltar:** usar `parent_path` da resposta anterior
-4. **Tocar música:** usar `audio_url` do item em `musicas`
+1. **Carregar tudo:** `GET /api/v1/musicas/browse/`
+2. **Renderizar tree** com `response.tree`
+3. **Ao clicar em pasta:** `GET /api/v1/musicas/browse/?prefix={path}`
+4. **Listar músicas da pasta:** usar `response.musicas`
+5. **Busca global:** filtrar `response.musicas_list` no frontend
 
 ## Exemplo
 
 ```bash
-# Raiz das músicas
 curl "https://backendjukebox-dev.up.railway.app/api/v1/musicas/browse/" \
-  -H "Authorization: Token <token>"
-
-# Subpasta
-curl "https://backendjukebox-dev.up.railway.app/api/v1/musicas/browse/?prefix=jukebox/Musicas/Rock/" \
   -H "Authorization: Token <token>"
 ```
 
 ## Configuração no bucket
-
-No cadastro do bucket (`/api/v1/buckets/` ou Admin), configure:
 
 | Campo | Valor |
 |---|---|
@@ -101,4 +140,4 @@ No cadastro do bucket (`/api/v1/buckets/` ou Admin), configure:
 
 ## Endpoint legado — CRUD no banco (`GET /api/v1/musicas/`)
 
-Lista músicas cadastradas no PostgreSQL (metadados). Para listar arquivos do R2, use `/browse/`.
+Lista músicas cadastradas no PostgreSQL. Para arquivos do R2, use `/browse/`.

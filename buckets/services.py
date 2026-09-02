@@ -64,6 +64,38 @@ class S3BucketService:
         except Exception as exc:
             raise handle_boto_error(exc) from exc
 
+    def list_all_objects(self, prefix=''):
+        try:
+            objects = []
+            continuation_token = None
+
+            while True:
+                params = {
+                    'Bucket': self.bucket_name,
+                    'Prefix': prefix,
+                    'MaxKeys': 1000,
+                }
+                if continuation_token:
+                    params['ContinuationToken'] = continuation_token
+
+                response = self.client.list_objects_v2(**params)
+                for item in response.get('Contents', []):
+                    objects.append({
+                        'key': item['Key'],
+                        'size': item['Size'],
+                        'last_modified': item['LastModified'].isoformat(),
+                        'etag': item['ETag'].strip('"'),
+                        'public_url': self.bucket_config.get_public_url(item['Key']),
+                    })
+
+                if not response.get('IsTruncated'):
+                    break
+                continuation_token = response.get('NextContinuationToken')
+
+            return objects
+        except Exception as exc:
+            raise handle_boto_error(exc) from exc
+
     def upload_object(self, key, file_obj, content_type=None):
         try:
             extra_args = {}

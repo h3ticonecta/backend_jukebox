@@ -50,17 +50,10 @@ class MusicaViewSet(viewsets.ModelViewSet):
     def browse(self, request):
         bucket_id = request.query_params.get('bucket_id')
         prefix = request.query_params.get('prefix', '')
-        continuation_token = request.query_params.get('continuation_token')
-        max_keys = min(int(request.query_params.get('max_keys', 100)), 1000)
 
         try:
             bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
-            result = browse_music_library(
-                bucket,
-                prefix=prefix,
-                continuation_token=continuation_token,
-                max_keys=max_keys,
-            )
+            result = browse_music_library(bucket, prefix=prefix)
             return Response(result)
         except BucketServiceError as exc:
             return Response(
