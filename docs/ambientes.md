@@ -70,20 +70,30 @@ Resposta esperada:
 
 Se `"database": "sqlite"` em produção, o PostgreSQL **não está vinculado**.
 
-## Bootstrap automático do bucket (Railway)
+## Configurar bucket pelo painel Admin (recomendado)
 
-Configure estas variáveis para recriar/atualizar o bucket a cada deploy:
+Com o PostgreSQL vinculado, cadastre o bucket uma vez no painel — os dados **persistem no banco** entre deploys.
 
-| Variável | Exemplo |
+1. Acesse `https://backendjukebox-dev.up.railway.app/admin/`
+2. Vá em **Configurações de bucket** → **Adicionar**
+3. Preencha os campos:
+
+| Campo no Admin | O que preencher |
 |---|---|
-| `BUCKET_CONFIG_NAME` | `jukebox-prod` |
-| `BUCKET_PROVIDER` | `cloudflare_r2` |
-| `BUCKET_ENDPOINT_URL` | `https://9f7ffe....r2.cloudflarestorage.com` |
-| `BUCKET_PUBLIC_BASE_URL` | `https://pub-b48c490....r2.dev` |
-| `BUCKET_NAME` | `jukebox` |
-| `BUCKET_ACCESS_KEY_ID` | sua access key |
-| `BUCKET_SECRET_ACCESS_KEY` | sua secret key |
-| `BUCKET_MUSIC_ROOT_PREFIX` | `jukebox/Musicas/` |
+| **Nome** | `jukebox-prod` (identificador interno) |
+| **Provedor** | `Cloudflare R2` |
+| **URL do endpoint** | `https://9f7ffe....r2.cloudflarestorage.com` |
+| **Nome do bucket** | `jukebox` |
+| **URL pública** | `https://pub-b48c490....r2.dev` |
+| **Pasta raiz das músicas** | `jukebox/Musicas/` |
+| **Região** | `auto` |
+| **Access key** | sua access key do R2 |
+| **Secret key** | sua secret key do R2 |
+| **Ativo** | marcado |
+
+Também é possível cadastrar via API: `POST /api/v1/buckets/` (com token de autenticação).
+
+> Não é necessário configurar variáveis `BUCKET_*` no Railway quando usar o Admin.
 
 ## Admin (uso interno)
 
