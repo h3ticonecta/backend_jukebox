@@ -1,7 +1,9 @@
 import os
 import re
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from buckets.exceptions import BucketServiceError
 from buckets.models import BucketConfig
@@ -12,6 +14,9 @@ from musicas.models import (
     AUDIO_EXTENSIONS,
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
+    BibliotecaCatalogo,
+    BibliotecaItem,
+    Musica,
 )
 
 COVER_FILENAMES = ('cover', 'folder', 'album', 'artwork', 'front', 'capa')
@@ -293,38 +298,69 @@ def get_music_bucket(bucket_id=None):
     return bucket
 
 
-def browse_music_library(bucket_config, prefix=None):
-    service = S3BucketService(bucket_config)
-    root_prefix = resolve_music_root_prefix(bucket_config, service=service)
-    current_prefix = resolve_browse_prefix(
-        prefix,
-        root_prefix,
-        bucket_name=bucket_config.bucket_name,
-    )
+def configured_root_prefix(bucket_config):
+    configured = normalize_prefix(bucket_config.music_root_prefix)
+    stripped = strip_bucket_from_prefix(configured, bucket_config.bucket_name)
+    return stripped or configured or 'Musicas/'
 
-    all_objects = service.list_all_objects(prefix=root_prefix)
-    all_keys = [item['key'] for item in all_objects]
-    level = service.list_directory(current_prefix)
 
-    folder_paths = set(extract_folder_paths(all_keys, root_prefix))
-    for folder_path in level['folders']:
-        folder_paths.add(normalize_prefix(folder_path))
-    for item in level['objects']:
-        key = item['key']
-        if key.endswith('/') and key.startswith(root_prefix) and key != current_prefix:
-            folder_paths.add(normalize_prefix(key))
-    folder_paths = sorted(folder_paths, key=str.lower)
+def get_catalog(bucket_config):
+    return BibliotecaCatalogo.objects.filter(bucket=bucket_config).first()
 
-    all_items = sorted(
-        [
-            build_media_item(item)
-            for item in all_objects
-            if is_library_key(item['key']) and not item['key'].endswith('/')
-        ],
-        key=lambda item: item['name'].lower(),
-    )
-    all_files = [item for item in all_items if item['media_type'] in {'audio', 'video'}]
+
+def catalog_is_ready(bucket_config):
+    catalog = get_catalog(bucket_config)
+    return bool(catalog and catalog.last_synced_at)
+
+
+def effective_root_prefix(bucket_config, probe_r2=False):
+    catalog = get_catalog(bucket_config)
+    if catalog and catalog.root_path:
+        return catalog.root_path
+    if probe_r2:
+        return resolve_music_root_prefix(bucket_config)
+    return configured_root_prefix(bucket_config)
+
+
+def item_from_model(row):
+    public_url = row.media_url or None
+    return {
+        'name': row.name,
+        'title': row.title,
+        'key': row.key,
+        'folder_path': row.folder_path,
+        'extension': row.extension,
+        'media_type': row.media_type,
+        'media_url': public_url,
+        'audio_url': public_url if row.media_type != 'image' else None,
+        'cover_url': public_url if row.media_type == 'image' else None,
+        'size': row.size,
+        'last_modified': row.last_modified,
+    }
+
+
+def assemble_browse(
+    bucket_config,
+    root_prefix,
+    current_prefix,
+    folder_paths,
+    all_items,
+    catalog=None,
+    search=None,
+):
+    folder_paths = sorted({normalize_prefix(path) for path in folder_paths if path}, key=str.lower)
+    all_items = sorted(all_items, key=lambda item: item['name'].lower())
+    playable = [item for item in all_items if item['media_type'] in {'audio', 'video'}]
     all_images = [item for item in all_items if item['media_type'] == 'image']
+    all_files = playable
+
+    if search:
+        term = search.strip().lower()
+        if term:
+            all_files = [
+                item for item in all_files
+                if term in item['name'].lower() or term in item['key'].lower()
+            ]
 
     images_by_folder = {}
     for image in all_images:
@@ -345,17 +381,11 @@ def browse_music_library(bucket_config, prefix=None):
         item['cover'] = cover_data
 
     tree = build_folder_tree(root_prefix, folder_paths, cover_urls)
-
-    current_files = [
-        item for item in all_files
-        if item['folder_path'] == current_prefix
-    ]
-    current_images = [
-        item for item in all_images
-        if item['folder_path'] == current_prefix
-    ]
+    current_files = [item for item in all_files if item['folder_path'] == current_prefix]
+    if search and search.strip():
+        current_files = all_files
+    current_images = [item for item in all_images if item['folder_path'] == current_prefix]
     current_cover_url, current_cover = cover_payload(covers.get(current_prefix))
-
     current_folder_paths = [
         folder_path for folder_path in folder_paths
         if folder_path.startswith(current_prefix)
@@ -374,6 +404,15 @@ def browse_music_library(bucket_config, prefix=None):
 
     return {
         'mode': 'file_manager',
+        'cached': True,
+        'needs_sync': not (catalog and catalog.last_synced_at),
+        'is_syncing': bool(catalog and catalog.is_syncing),
+        'last_synced_at': (
+            catalog.last_synced_at.isoformat()
+            if catalog and catalog.last_synced_at
+            else None
+        ),
+        'last_error': (catalog.last_error if catalog else '') or '',
         'bucket_id': bucket_config.id,
         'bucket_name': bucket_config.bucket_name,
         'root_path': root_prefix,
@@ -381,6 +420,7 @@ def browse_music_library(bucket_config, prefix=None):
         'parent_path': get_parent_path(current_prefix, root_prefix),
         'cover_url': current_cover_url,
         'cover': current_cover,
+        'search': search or '',
         'breadcrumbs': build_breadcrumbs(current_prefix, root_prefix),
         'tree': tree,
         'folders': current_folders,
@@ -392,21 +432,249 @@ def browse_music_library(bucket_config, prefix=None):
         'musicas_list': all_files,
         'totals': {
             'folders': len(folder_paths),
-            'files': len(all_files),
+            'files': len(playable),
             'images': len(all_images),
             'current_folders': len(current_folders),
-            'current_files': len(current_files),
+            'current_files': len([
+                item for item in playable if item['folder_path'] == current_prefix
+            ]),
             'current_images': len(current_images),
-            'audio': sum(1 for item in all_files if item['media_type'] == 'audio'),
-            'video': sum(1 for item in all_files if item['media_type'] == 'video'),
+            'audio': sum(1 for item in playable if item['media_type'] == 'audio'),
+            'video': sum(1 for item in playable if item['media_type'] == 'video'),
         },
     }
 
 
-def upload_file_to_folder(bucket_config, prefix, uploaded_file):
-    from musicas.models import Musica
+def browse_music_library(bucket_config, prefix=None, search=None):
+    catalog = get_catalog(bucket_config)
+    root_prefix = effective_root_prefix(bucket_config, probe_r2=False)
+    current_prefix = resolve_browse_prefix(
+        prefix,
+        root_prefix,
+        bucket_name=bucket_config.bucket_name,
+    )
 
-    root_prefix = resolve_music_root_prefix(bucket_config)
+    if not catalog or not catalog.last_synced_at:
+        return assemble_browse(
+            bucket_config,
+            root_prefix,
+            current_prefix,
+            folder_paths=[root_prefix] if root_prefix else [],
+            all_items=[],
+            catalog=catalog,
+            search=search,
+        )
+
+    folder_paths = list(
+        BibliotecaItem.objects.filter(
+            bucket=bucket_config,
+            kind=BibliotecaItem.KIND_FOLDER,
+        ).values_list('key', flat=True),
+    )
+    file_rows = BibliotecaItem.objects.filter(
+        bucket=bucket_config,
+        kind=BibliotecaItem.KIND_FILE,
+    )
+    all_items = [item_from_model(row) for row in file_rows]
+    return assemble_browse(
+        bucket_config,
+        root_prefix,
+        current_prefix,
+        folder_paths=folder_paths,
+        all_items=all_items,
+        catalog=catalog,
+        search=search,
+    )
+
+
+def collect_library_from_r2(bucket_config):
+    service = S3BucketService(bucket_config)
+    root_prefix = resolve_music_root_prefix(bucket_config, service=service)
+    all_objects = service.list_all_objects(prefix=root_prefix)
+    all_keys = [item['key'] for item in all_objects]
+    level = service.list_directory(root_prefix)
+
+    folder_paths = set(extract_folder_paths(all_keys, root_prefix))
+    folder_paths.add(root_prefix)
+    for folder_path in level['folders']:
+        folder_paths.add(normalize_prefix(folder_path))
+    for item in level['objects']:
+        key = item['key']
+        if key.endswith('/') and key.startswith(root_prefix):
+            folder_paths.add(normalize_prefix(key))
+
+    all_items = [
+        build_media_item(item)
+        for item in all_objects
+        if is_library_key(item['key']) and not item['key'].endswith('/')
+    ]
+    return {
+        'root_prefix': root_prefix,
+        'folder_paths': sorted(folder_paths, key=str.lower),
+        'items': all_items,
+    }
+
+
+def replace_catalog(bucket_config, snapshot):
+    root_prefix = snapshot['root_prefix']
+    folder_paths = {normalize_prefix(path) for path in snapshot['folder_paths'] if path}
+    folder_paths.add(root_prefix)
+    items = snapshot['items']
+
+    rows = []
+    for path in folder_paths:
+        parent = get_parent_path(path, root_prefix)
+        name = folder_name_from_prefix(path) or path
+        rows.append(BibliotecaItem(
+            bucket=bucket_config,
+            kind=BibliotecaItem.KIND_FOLDER,
+            key=path,
+            name=name[:512],
+            title=name[:512],
+            folder_path=parent or '',
+            extension='',
+            media_type='folder',
+            size=0,
+            last_modified='',
+            media_url='',
+        ))
+
+    for item in items:
+        rows.append(BibliotecaItem(
+            bucket=bucket_config,
+            kind=BibliotecaItem.KIND_FILE,
+            key=item['key'],
+            name=item['name'][:512],
+            title=(item.get('title') or '')[:512],
+            folder_path=item['folder_path'],
+            extension=(item.get('extension') or '')[:16],
+            media_type=(item.get('media_type') or 'other')[:16],
+            size=item.get('size') or 0,
+            last_modified=str(item.get('last_modified') or '')[:64],
+            media_url=(item.get('media_url') or '')[:2048],
+        ))
+
+    with transaction.atomic():
+        BibliotecaItem.objects.filter(bucket=bucket_config).delete()
+        BibliotecaItem.objects.bulk_create(rows, batch_size=500)
+
+        catalogo, _created = BibliotecaCatalogo.objects.get_or_create(bucket=bucket_config)
+        catalogo.root_path = root_prefix
+        catalogo.last_synced_at = timezone.now()
+        catalogo.last_error = ''
+        catalogo.folders_count = len(folder_paths)
+        catalogo.files_count = sum(1 for item in items if item['media_type'] in {'audio', 'video'})
+        catalogo.images_count = sum(1 for item in items if item['media_type'] == 'image')
+        catalogo.save()
+        return catalogo
+
+
+def refresh_catalog_counts(bucket_config):
+    catalogo = get_catalog(bucket_config)
+    if catalogo is None:
+        return
+    items = BibliotecaItem.objects.filter(bucket=bucket_config)
+    catalogo.folders_count = items.filter(kind=BibliotecaItem.KIND_FOLDER).count()
+    catalogo.files_count = items.filter(
+        kind=BibliotecaItem.KIND_FILE,
+        media_type__in=['audio', 'video'],
+    ).count()
+    catalogo.images_count = items.filter(
+        kind=BibliotecaItem.KIND_FILE,
+        media_type='image',
+    ).count()
+    catalogo.save(update_fields=['folders_count', 'files_count', 'images_count', 'updated_at'])
+
+
+def cache_upsert_file(bucket_config, item):
+    if not catalog_is_ready(bucket_config):
+        return
+    BibliotecaItem.objects.update_or_create(
+        bucket=bucket_config,
+        key=item['key'],
+        defaults={
+            'kind': BibliotecaItem.KIND_FILE,
+            'name': item['name'][:512],
+            'title': (item.get('title') or item['name'])[:512],
+            'folder_path': item['folder_path'],
+            'extension': (item.get('extension') or '')[:16],
+            'media_type': (item.get('media_type') or get_media_type(
+                os.path.splitext(item['name'])[1].lower(),
+            ))[:16],
+            'size': item.get('size') or 0,
+            'last_modified': str(item.get('last_modified') or '')[:64],
+            'media_url': (item.get('media_url') or '')[:2048],
+        },
+    )
+    refresh_catalog_counts(bucket_config)
+
+
+def cache_upsert_folder(bucket_config, folder_key, root_prefix):
+    if not catalog_is_ready(bucket_config):
+        return
+    folder_key = normalize_prefix(folder_key)
+    parent = get_parent_path(folder_key, root_prefix)
+    name = folder_name_from_prefix(folder_key) or folder_key
+    BibliotecaItem.objects.update_or_create(
+        bucket=bucket_config,
+        key=folder_key,
+        defaults={
+            'kind': BibliotecaItem.KIND_FOLDER,
+            'name': name[:512],
+            'title': name[:512],
+            'folder_path': parent or '',
+            'extension': '',
+            'media_type': 'folder',
+            'size': 0,
+            'last_modified': '',
+            'media_url': '',
+        },
+    )
+    refresh_catalog_counts(bucket_config)
+
+
+def cache_delete_keys(bucket_config, keys):
+    if not catalog_is_ready(bucket_config) or not keys:
+        return
+    BibliotecaItem.objects.filter(bucket=bucket_config, key__in=keys).delete()
+    refresh_catalog_counts(bucket_config)
+
+
+def sync_music_library(bucket_config):
+    catalogo, _created = BibliotecaCatalogo.objects.get_or_create(bucket=bucket_config)
+    if catalogo.is_syncing:
+        raise BucketServiceError(
+            'Sincronização já em andamento.',
+            'SYNC_IN_PROGRESS',
+        )
+
+    catalogo.is_syncing = True
+    catalogo.last_error = ''
+    catalogo.save(update_fields=['is_syncing', 'last_error', 'updated_at'])
+
+    try:
+        snapshot = collect_library_from_r2(bucket_config)
+        catalogo = replace_catalog(bucket_config, snapshot)
+        return {
+            'synced': True,
+            'root_path': catalogo.root_path,
+            'last_synced_at': catalogo.last_synced_at.isoformat() if catalogo.last_synced_at else None,
+            'folders': catalogo.folders_count,
+            'files': catalogo.files_count,
+            'images': catalogo.images_count,
+        }
+    except Exception as exc:
+        message = exc.message if isinstance(exc, BucketServiceError) else str(exc)
+        BibliotecaCatalogo.objects.filter(pk=catalogo.pk).update(last_error=message)
+        if isinstance(exc, BucketServiceError):
+            raise
+        raise BucketServiceError(message, 'SYNC_ERROR') from exc
+    finally:
+        BibliotecaCatalogo.objects.filter(pk=catalogo.pk).update(is_syncing=False)
+
+
+def upload_file_to_folder(bucket_config, prefix, uploaded_file):
+    root_prefix = effective_root_prefix(bucket_config, probe_r2=True)
     current_prefix = resolve_browse_prefix(
         prefix,
         root_prefix,
@@ -425,34 +693,69 @@ def upload_file_to_folder(bucket_config, prefix, uploaded_file):
         content_type=uploaded_file.content_type,
     )
 
+    media_url = bucket_config.get_public_url(key)
+    extension = os.path.splitext(safe_name)[1].lower()
+    cache_upsert_file(bucket_config, {
+        'key': key,
+        'name': safe_name,
+        'title': os.path.splitext(safe_name)[0],
+        'folder_path': current_prefix,
+        'extension': extension,
+        'media_type': get_media_type(extension),
+        'size': getattr(uploaded_file, 'size', 0) or 0,
+        'last_modified': timezone.now().isoformat(),
+        'media_url': media_url or '',
+    })
+
     return {
         'key': key,
         'name': safe_name,
         'folder_path': current_prefix,
-        'media_url': bucket_config.get_public_url(key),
+        'media_url': media_url,
     }
 
 
 def move_file(bucket_config, source_key, destination_key):
-    root_prefix = resolve_music_root_prefix(bucket_config)
+    root_prefix = effective_root_prefix(bucket_config, probe_r2=True)
     validate_key_in_root(source_key, root_prefix)
     validate_key_in_root(destination_key, root_prefix)
 
     service = S3BucketService(bucket_config)
-    return service.move_object(source_key, destination_key)
+    result = service.move_object(source_key, destination_key)
+
+    if catalog_is_ready(bucket_config):
+        source = BibliotecaItem.objects.filter(bucket=bucket_config, key=source_key).first()
+        cache_delete_keys(bucket_config, [source_key])
+        dest_name = os.path.basename(destination_key.rstrip('/'))
+        dest_folder = normalize_prefix('/'.join(destination_key.split('/')[:-1]))
+        extension = os.path.splitext(dest_name)[1].lower()
+        cache_upsert_file(bucket_config, {
+            'key': destination_key,
+            'name': dest_name,
+            'title': os.path.splitext(dest_name)[0],
+            'folder_path': dest_folder,
+            'extension': extension,
+            'media_type': source.media_type if source else get_media_type(extension),
+            'size': source.size if source else 0,
+            'last_modified': timezone.now().isoformat(),
+            'media_url': bucket_config.get_public_url(destination_key) or '',
+        })
+    return result
 
 
 def delete_files(bucket_config, keys):
-    root_prefix = resolve_music_root_prefix(bucket_config)
+    root_prefix = effective_root_prefix(bucket_config, probe_r2=True)
     for key in keys:
         validate_key_in_root(key, root_prefix)
 
     service = S3BucketService(bucket_config)
-    return service.delete_objects(keys)
+    result = service.delete_objects(keys)
+    cache_delete_keys(bucket_config, keys)
+    return result
 
 
 def create_folder(bucket_config, prefix, folder_name):
-    root_prefix = resolve_music_root_prefix(bucket_config)
+    root_prefix = effective_root_prefix(bucket_config, probe_r2=True)
     current_prefix = resolve_browse_prefix(
         prefix,
         root_prefix,
@@ -463,4 +766,6 @@ def create_folder(bucket_config, prefix, folder_name):
     validate_key_in_root(folder_key, root_prefix)
 
     service = S3BucketService(bucket_config)
-    return service.create_folder(folder_key)
+    result = service.create_folder(folder_key)
+    cache_upsert_folder(bucket_config, folder_key, root_prefix)
+    return result

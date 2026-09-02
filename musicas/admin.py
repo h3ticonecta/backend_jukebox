@@ -14,6 +14,7 @@ from musicas.services import (
     delete_files,
     get_music_bucket,
     move_file,
+    sync_music_library,
     upload_file_to_folder,
 )
 
@@ -54,6 +55,11 @@ class MusicaAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.create_folder_view),
                 name='musicas_musica_create_folder',
             ),
+            path(
+                'sync/',
+                self.admin_site.admin_view(self.sync_view),
+                name='musicas_musica_sync',
+            ),
         ]
         return custom_urls + urls
 
@@ -64,6 +70,7 @@ class MusicaAdmin(admin.ModelAdmin):
         if not self.has_view_permission(request):
             raise PermissionDenied
         prefix = request.GET.get('prefix', '')
+        search = request.GET.get('q', '').strip()
         context = {
             **self.admin_site.each_context(request),
             'title': 'Biblioteca de Músicas',
@@ -76,7 +83,11 @@ class MusicaAdmin(admin.ModelAdmin):
 
         try:
             bucket = get_music_bucket()
-            context['browse'] = browse_music_library(bucket, prefix=prefix)
+            context['browse'] = browse_music_library(
+                bucket,
+                prefix=prefix,
+                search=search,
+            )
         except BucketServiceError as exc:
             context['error'] = exc.message
 
@@ -158,6 +169,28 @@ class MusicaAdmin(admin.ModelAdmin):
             bucket = get_music_bucket()
             create_folder(bucket, prefix=prefix, folder_name=folder_name)
             messages.success(request, f'Pasta "{folder_name}" criada com sucesso.')
+        except BucketServiceError as exc:
+            messages.error(request, exc.message)
+
+        return self._redirect_prefix(prefix)
+
+    def sync_view(self, request):
+        if request.method != 'POST':
+            return redirect('admin:musicas_musica_changelist')
+
+        prefix = request.POST.get('prefix', '')
+        try:
+            bucket = get_music_bucket()
+            result = sync_music_library(bucket)
+            messages.success(
+                request,
+                (
+                    'Biblioteca sincronizada: '
+                    f'{result["folders"]} pasta(s), '
+                    f'{result["files"]} faixa(s), '
+                    f'{result["images"]} capa(s).'
+                ),
+            )
         except BucketServiceError as exc:
             messages.error(request, exc.message)
 

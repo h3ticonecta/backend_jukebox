@@ -37,6 +37,9 @@
   .fm-image-card { border: 1px solid var(--hairline-color, #ddd); border-radius: 8px; padding: 10px; text-align: center; }
   .fm-error { background: #f8d7da; color: #842029; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
   .fm-inline-form { display: inline-flex; gap: 8px; align-items: center; }
+  .fm-sync { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .fm-warning { background: #fff3cd; color: #664d03; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
+  .fm-meta { opacity: 0.7; font-size: 12px; }
   @media (max-width: 900px) { .fm-layout { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
@@ -44,7 +47,7 @@
 {% block content %}
 <div id="content-main">
   <h1>Biblioteca de Músicas</h1>
-  <p style="opacity:0.8;">Gerenciador de arquivos do R2 — pastas, músicas, vídeos e fotos de álbum (jpg/png).</p>
+  <p style="opacity:0.8;">Catálogo em cache no PostgreSQL — use Sincronizar para reler o R2.</p>
 
   {% if error %}
     <div class="fm-error">
@@ -52,6 +55,30 @@
       Configure o bucket em <a href="{% url 'admin:buckets_bucketconfig_changelist' %}">Configurações de bucket</a>.
     </div>
   {% elif browse %}
+    <div class="fm-sync">
+      <form class="fm-inline-form" method="post" action="{% url 'admin:musicas_musica_sync' %}">
+        {% csrf_token %}
+        <input type="hidden" name="prefix" value="{{ browse.current_path }}">
+        <input type="submit" value="Sincronizar biblioteca" class="default" onclick="this.value='Sincronizando…'; this.disabled=true; this.form.submit();">
+      </form>
+      <span class="fm-meta">
+        {% if browse.last_synced_at %}
+          Última sincronização: {{ browse.last_synced_at }}
+        {% else %}
+          Ainda não sincronizado
+        {% endif %}
+      </span>
+    </div>
+
+    {% if browse.needs_sync %}
+      <div class="fm-warning">
+        A biblioteca ainda não foi sincronizada. Clique em <strong>Sincronizar biblioteca</strong> para importar pastas, músicas e capas do R2.
+      </div>
+    {% endif %}
+    {% if browse.last_error %}
+      <div class="fm-error"><strong>Último erro de sincronização:</strong> {{ browse.last_error }}</div>
+    {% endif %}
+
     <div class="fm-breadcrumbs">
       {% for crumb in browse.breadcrumbs %}
         <a href="?prefix={{ crumb.path|urlencode }}">{{ crumb.name }}</a>
@@ -77,6 +104,12 @@
         <input type="hidden" name="prefix" value="{{ browse.current_path }}">
         <input type="text" name="name" placeholder="Nova pasta" required>
         <input type="submit" value="Criar pasta" class="button">
+      </form>
+
+      <form class="fm-inline-form" method="get">
+        <input type="hidden" name="prefix" value="{{ browse.current_path }}">
+        <input type="search" name="q" value="{{ browse.search }}" placeholder="Buscar no catálogo">
+        <input type="submit" value="Buscar" class="button">
       </form>
 
       <span style="margin-left:auto; opacity:0.7;">
@@ -128,7 +161,7 @@
           </div>
         {% endif %}
 
-        <h3>Arquivos</h3>
+        <h3>{% if browse.search %}Resultados da busca{% else %}Arquivos{% endif %}</h3>
         {% if browse.files %}
           <form method="post" action="{% url 'admin:musicas_musica_delete' %}">
             {% csrf_token %}

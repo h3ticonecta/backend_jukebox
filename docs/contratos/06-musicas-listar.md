@@ -10,7 +10,7 @@
 
 ## Descrição
 
-A aba de músicas funciona como um **gerenciador de arquivos** do R2. Não é necessário cadastrar músicas separadamente — os arquivos são lidos diretamente do bucket na pasta configurada (padrão efetivo: `Musicas/`).
+A aba de músicas funciona como um **gerenciador de arquivos**. O R2 é lido só na **sincronização**; navegação e busca usam o catálogo em cache no PostgreSQL.
 
 Suporta:
 - Áudio: `.mp3`, `.wav`, `.ogg`, `.m4a`, `.flac`
@@ -18,6 +18,8 @@ Suporta:
 - Capa de álbum: `.jpg`, `.jpeg`, `.png`
 
 A capa da pasta é escolhida nesta ordem de nome (sem extensão): `cover`, `folder`, `album`, `artwork`, `front`, `capa`. Se nenhum desses existir, usa a primeira imagem da pasta.
+
+Antes do primeiro `POST /sync/`, `needs_sync` vem `true` e as listas ficam vazias.
 
 ## Autenticação
 
@@ -27,8 +29,9 @@ Obrigatória — `Authorization: Token <token>`
 
 | Método | Path | Descrição |
 |---|---|---|
-| `GET` | `/api/v1/musicas/` | Navegar pastas e listar arquivos |
+| `GET` | `/api/v1/musicas/` | Navegar o catálogo em cache |
 | `GET` | `/api/v1/musicas/browse/` | Alias do endpoint acima |
+| `POST` | `/api/v1/musicas/sync/` | Relê o R2 e atualiza o PostgreSQL |
 | `POST` | `/api/v1/musicas/upload/` | Upload na pasta atual |
 | `POST` | `/api/v1/musicas/move/` | Mover arquivo |
 | `POST` | `/api/v1/musicas/delete/` | Excluir arquivos |
@@ -39,12 +42,14 @@ Obrigatória — `Authorization: Token <token>`
 ## 1. Navegar (GET)
 
 ```
-GET /api/v1/musicas/?prefix=jukebox/Musicas/Rock/
+GET /api/v1/musicas/?prefix=Musicas/Rock/
+GET /api/v1/musicas/?q=love
 ```
 
 | Query | Descrição |
 |---|---|
-| `prefix` | Pasta atual (omitir = raiz `jukebox/Musicas/`) |
+| `prefix` | Pasta atual (omitir = raiz do catálogo) |
+| `q` | Busca no catálogo (nome/chave), sem consultar o R2 |
 | `bucket_id` | Opcional — padrão: bucket `jukebox` |
 
 ### Response
@@ -52,6 +57,10 @@ GET /api/v1/musicas/?prefix=jukebox/Musicas/Rock/
 ```json
 {
   "mode": "file_manager",
+  "cached": true,
+  "needs_sync": false,
+  "is_syncing": false,
+  "last_synced_at": "2026-09-02T16:00:00+00:00",
   "bucket_id": 1,
   "bucket_name": "jukebox",
   "root_path": "Musicas/",
@@ -150,10 +159,34 @@ GET /api/v1/musicas/?prefix=jukebox/Musicas/Rock/
 | `files_list` | Busca global de faixas em todas as pastas |
 | `images_list` | Todas as capas/fotos |
 | `cover_url` | Capa da pasta atual |
+| `cached` / `needs_sync` | Se o catálogo PostgreSQL já foi sincronizado |
+| `last_synced_at` | Data da última leitura do R2 |
 
 ---
 
-## 2. Upload (POST)
+## 2. Sincronizar (POST)
+
+```
+POST /api/v1/musicas/sync/
+```
+
+Relê o bucket R2 e substitui o catálogo no PostgreSQL. Pode demorar na primeira vez. Enquanto roda, um segundo `POST` retorna `409 SYNC_IN_PROGRESS`.
+
+```json
+{
+  "bucket_id": 1,
+  "synced": true,
+  "root_path": "Musicas/",
+  "last_synced_at": "2026-09-02T16:00:00+00:00",
+  "folders": 40,
+  "files": 120,
+  "images": 35
+}
+```
+
+---
+
+## 3. Upload (POST)
 
 ```
 POST /api/v1/musicas/upload/
@@ -167,7 +200,7 @@ Content-Type: multipart/form-data
 
 ---
 
-## 3. Mover (POST)
+## 4. Mover (POST)
 
 ```json
 POST /api/v1/musicas/move/
@@ -179,7 +212,7 @@ POST /api/v1/musicas/move/
 
 ---
 
-## 4. Excluir (POST)
+## 5. Excluir (POST)
 
 ```json
 POST /api/v1/musicas/delete/
@@ -190,7 +223,7 @@ POST /api/v1/musicas/delete/
 
 ---
 
-## 5. Criar pasta (POST)
+## 6. Criar pasta (POST)
 
 ```json
 POST /api/v1/musicas/folders/
@@ -205,17 +238,18 @@ POST /api/v1/musicas/folders/
 ## Fluxo do frontend (file manager)
 
 ```
-1. GET /musicas/                    → monta tree + lista raiz
-2. Clicar pasta "Rock"              → GET /musicas/?prefix=jukebox/Musicas/Rock/
-3. Clicar breadcrumb                → GET /musicas/?prefix={path}
-4. Upload                           → POST /musicas/upload/ com prefix atual
-5. Tocar arquivo                    → usar file.media_url no player
-6. Busca                            → filtrar files_list localmente
+1. POST /musicas/sync/              → uma vez (ou quando o R2 mudar por fora)
+2. GET /musicas/                    → monta tree + lista a partir do PostgreSQL
+3. Clicar pasta "Rock"              → GET /musicas/?prefix=Musicas/Rock/
+4. Busca                            → GET /musicas/?q=love
+5. Upload / excluir / criar pasta   → atualiza R2 e o cache
+6. Tocar arquivo                    → usar file.media_url no player
 ```
 
 ## Notas
 
-- Não use CRUD separado de músicas — tudo vem do R2
-- Configure o bucket no Django Admin (`/admin/`) com `music_root_prefix`
+- Navegação e busca **não** listam o R2; usam o catálogo PostgreSQL
+- Use `POST /musicas/sync/` ou o botão **Sincronizar biblioteca** no Admin após mudanças feitas direto no bucket
+- Upload, exclusão, mover e criar pasta já atualizam o cache
 - Campos `musicas` e `musicas_list` mantidos como alias de `files` e `files_list` (somente áudio/vídeo)
 - JPG/PNG não entram em `files` para o player não tentar tocá-los; use `images` / `cover_url`

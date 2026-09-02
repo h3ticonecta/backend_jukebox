@@ -64,3 +64,73 @@ class Musica(models.Model):
     def build_storage_key(musica_id, filename):
         safe_name = re.sub(r'[^\w.\-]', '_', filename)
         return f'musicas/{musica_id}/{safe_name}'
+
+
+class BibliotecaCatalogo(models.Model):
+    bucket = models.OneToOneField(
+        BucketConfig,
+        on_delete=models.CASCADE,
+        related_name='catalogo_musicas',
+        verbose_name='bucket',
+    )
+    root_path = models.CharField('pasta raiz', max_length=1024, blank=True)
+    last_synced_at = models.DateTimeField('sincronizado em', null=True, blank=True)
+    is_syncing = models.BooleanField('sincronizando', default=False)
+    last_error = models.TextField('último erro', blank=True)
+    folders_count = models.PositiveIntegerField('pastas', default=0)
+    files_count = models.PositiveIntegerField('arquivos', default=0)
+    images_count = models.PositiveIntegerField('imagens', default=0)
+    created_at = models.DateTimeField('criado em', auto_now_add=True)
+    updated_at = models.DateTimeField('atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'catálogo da biblioteca'
+        verbose_name_plural = 'catálogos da biblioteca'
+
+    def __str__(self):
+        return f'Catálogo {self.bucket}'
+
+
+class BibliotecaItem(models.Model):
+    KIND_FILE = 'file'
+    KIND_FOLDER = 'folder'
+    KIND_CHOICES = (
+        (KIND_FILE, 'arquivo'),
+        (KIND_FOLDER, 'pasta'),
+    )
+
+    bucket = models.ForeignKey(
+        BucketConfig,
+        on_delete=models.CASCADE,
+        related_name='biblioteca_itens',
+        verbose_name='bucket',
+    )
+    kind = models.CharField('tipo', max_length=16, choices=KIND_CHOICES, db_index=True)
+    key = models.CharField('chave', max_length=1024)
+    name = models.CharField('nome', max_length=512)
+    title = models.CharField('título', max_length=512, blank=True)
+    folder_path = models.CharField('pasta', max_length=1024, db_index=True)
+    extension = models.CharField('extensão', max_length=16, blank=True)
+    media_type = models.CharField('tipo de mídia', max_length=16, db_index=True)
+    size = models.PositiveBigIntegerField('tamanho', default=0)
+    last_modified = models.CharField('modificado em', max_length=64, blank=True)
+    media_url = models.CharField('URL pública', max_length=2048, blank=True)
+
+    class Meta:
+        verbose_name = 'item da biblioteca'
+        verbose_name_plural = 'itens da biblioteca'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['bucket', 'key'],
+                name='uniq_biblioteca_item_bucket_key',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['bucket', 'kind', 'folder_path'], name='musicas_biblio_path_idx'),
+            models.Index(fields=['bucket', 'media_type'], name='musicas_biblio_media_idx'),
+            models.Index(fields=['name'], name='musicas_biblio_name_idx'),
+        ]
+        ordering = ['name']
+
+    def __str__(self):
+        return self.key

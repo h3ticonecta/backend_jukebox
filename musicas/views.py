@@ -17,6 +17,7 @@ from musicas.services import (
     delete_files,
     get_music_bucket,
     move_file,
+    sync_music_library,
     upload_file_to_folder,
 )
 
@@ -34,7 +35,7 @@ class MusicaFileManagerViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        """GET /api/v1/musicas/ — navega pastas e lista arquivos do R2."""
+        """GET /api/v1/musicas/ — navega o catálogo em cache no PostgreSQL."""
         return self._browse(request)
 
     @action(detail=False, methods=['get'], url_path='browse')
@@ -45,12 +46,30 @@ class MusicaFileManagerViewSet(viewsets.ViewSet):
     def _browse(self, request):
         bucket_id = request.query_params.get('bucket_id')
         prefix = request.query_params.get('prefix', '')
+        search = request.query_params.get('q', '').strip()
 
         try:
             bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
-            return Response(browse_music_library(bucket, prefix=prefix))
+            return Response(browse_music_library(bucket, prefix=prefix, search=search))
         except BucketServiceError as exc:
             return error_response(exc)
+
+    @action(detail=False, methods=['post'], url_path='sync')
+    def sync(self, request):
+        """POST /api/v1/musicas/sync/ — relê o R2 e atualiza o catálogo no PostgreSQL."""
+        bucket_id = request.data.get('bucket_id') or request.query_params.get('bucket_id')
+
+        try:
+            bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
+            result = sync_music_library(bucket)
+            return Response({'bucket_id': bucket.id, **result})
+        except BucketServiceError as exc:
+            status_code = (
+                status.HTTP_409_CONFLICT
+                if exc.code == 'SYNC_IN_PROGRESS'
+                else status.HTTP_400_BAD_REQUEST
+            )
+            return error_response(exc, status_code=status_code)
 
     @action(
         detail=False,
