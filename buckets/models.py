@@ -20,6 +20,12 @@ class BucketConfig(models.Model):
         blank=True,
         help_text='Ex: https://pub-xxxxx.r2.dev — usada para URLs públicas de arquivos',
     )
+    music_root_prefix = models.CharField(
+        'pasta raiz das músicas',
+        max_length=1024,
+        default='jukebox/Musicas/',
+        help_text='Caminho no bucket onde ficam as músicas. Ex: jukebox/Musicas/',
+    )
     bucket_name = models.CharField('nome do bucket', max_length=255)
     access_key_id = models.CharField('access key', max_length=255)
     secret_access_key = models.CharField('secret key', max_length=255)

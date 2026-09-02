@@ -19,7 +19,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 | [Auth Token](./contratos/03-auth-token.md) | `POST /api/v1/auth/token/` | Obter token de autenticação |
 | [Buckets CRUD](./contratos/04-buckets-crud.md) | `/api/v1/buckets/` | Cadastrar conexões S3/R2 |
 | [Bucket Objects](./contratos/05-bucket-objects.md) | `/api/v1/buckets/{id}/objects/` | Gerenciar arquivos no bucket |
-| [Músicas Listar](./contratos/06-musicas-listar.md) | `GET /api/v1/musicas/` | Listar músicas com `audio_url` |
+| [Músicas Browse](./contratos/06-musicas-listar.md) | `GET /api/v1/musicas/browse/` | Navegar pastas e músicas do R2 |
 | [Músicas CRUD](./contratos/07-musicas-crud.md) | `/api/v1/musicas/` | Criar, editar, excluir músicas |
 | [Músicas Upload](./contratos/08-musicas-upload.md) | `POST /api/v1/musicas/{id}/upload/` | Enviar arquivo de áudio |
 

@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -12,7 +13,7 @@ from musicas.serializers import (
     MusicaUploadSerializer,
     MusicaWriteSerializer,
 )
-from musicas.services import delete_musica_file, upload_musica_file
+from musicas.services import browse_music_library, delete_musica_file, get_music_bucket, upload_musica_file
 
 
 class MusicaViewSet(viewsets.ModelViewSet):
@@ -44,6 +45,28 @@ class MusicaViewSet(viewsets.ModelViewSet):
         except BucketServiceError:
             pass
         instance.delete()
+
+    @action(detail=False, methods=['get'], url_path='browse')
+    def browse(self, request):
+        bucket_id = request.query_params.get('bucket_id')
+        prefix = request.query_params.get('prefix', '')
+        continuation_token = request.query_params.get('continuation_token')
+        max_keys = min(int(request.query_params.get('max_keys', 100)), 1000)
+
+        try:
+            bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
+            result = browse_music_library(
+                bucket,
+                prefix=prefix,
+                continuation_token=continuation_token,
+                max_keys=max_keys,
+            )
+            return Response(result)
+        except BucketServiceError as exc:
+            return Response(
+                {'error': {'code': exc.code, 'message': exc.message}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class MusicaUploadView(APIView):
