@@ -96,6 +96,14 @@ class S3BucketService:
         except Exception as exc:
             raise handle_boto_error(exc) from exc
 
+    def create_folder(self, folder_key):
+        try:
+            key = folder_key if folder_key.endswith('/') else f'{folder_key}/'
+            self.client.put_object(Bucket=self.bucket_name, Key=key, Body=b'')
+            return {'key': key, 'bucket': self.bucket_name}
+        except Exception as exc:
+            raise handle_boto_error(exc) from exc
+
     def upload_object(self, key, file_obj, content_type=None):
         try:
             extra_args = {}

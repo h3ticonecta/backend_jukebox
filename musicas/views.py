@@ -1,87 +1,134 @@
-from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from buckets.exceptions import BucketServiceError
-from musicas.models import Musica
 from musicas.serializers import (
-    MusicaSerializer,
-    MusicaUploadSerializer,
-    MusicaWriteSerializer,
+    FileManagerCreateFolderSerializer,
+    FileManagerDeleteSerializer,
+    FileManagerMoveSerializer,
+    FileManagerUploadSerializer,
 )
-from musicas.services import browse_music_library, delete_musica_file, get_music_bucket, upload_musica_file
+from musicas.services import (
+    browse_music_library,
+    create_folder,
+    delete_files,
+    get_music_bucket,
+    move_file,
+    upload_file_to_folder,
+)
 
 
-class MusicaViewSet(viewsets.ModelViewSet):
+def error_response(exc, status_code=status.HTTP_400_BAD_REQUEST):
+    return Response(
+        {'error': {'code': exc.code, 'message': exc.message}},
+        status=status_code,
+    )
+
+
+class MusicaFileManagerViewSet(viewsets.ViewSet):
+    """File manager de músicas no R2 — navegação, upload, mover e excluir."""
+
     permission_classes = [IsAuthenticated]
-    queryset = Musica.objects.select_related('bucket').all()
 
-    def get_serializer_class(self):
-        if self.action in ('create', 'update', 'partial_update'):
-            return MusicaWriteSerializer
-        return MusicaSerializer
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        artist = self.request.query_params.get('artist')
-        album = self.request.query_params.get('album')
-        is_active = self.request.query_params.get('is_active')
-
-        if artist:
-            queryset = queryset.filter(artist__icontains=artist)
-        if album:
-            queryset = queryset.filter(album__icontains=album)
-        if is_active is not None:
-            queryset = queryset.filter(is_active=is_active.lower() in ('true', '1', 'yes'))
-        return queryset
-
-    def perform_destroy(self, instance):
-        try:
-            delete_musica_file(instance)
-        except BucketServiceError:
-            pass
-        instance.delete()
+    def list(self, request):
+        """GET /api/v1/musicas/ — navega pastas e lista arquivos do R2."""
+        return self._browse(request)
 
     @action(detail=False, methods=['get'], url_path='browse')
     def browse(self, request):
+        """Alias de list para compatibilidade."""
+        return self._browse(request)
+
+    def _browse(self, request):
         bucket_id = request.query_params.get('bucket_id')
         prefix = request.query_params.get('prefix', '')
 
         try:
             bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
-            result = browse_music_library(bucket, prefix=prefix)
-            return Response(result)
+            return Response(browse_music_library(bucket, prefix=prefix))
         except BucketServiceError as exc:
-            return Response(
-                {'error': {'code': exc.code, 'message': exc.message}},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return error_response(exc)
 
-
-class MusicaUploadView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
-
-    def post(self, request, pk):
-        musica = get_object_or_404(Musica, pk=pk)
-        serializer = MusicaUploadSerializer(data=request.data)
+    @action(
+        detail=False,
+        methods=['post'],
+        url_path='upload',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload(self, request):
+        """POST /api/v1/musicas/upload/ — envia arquivo para a pasta atual."""
+        serializer = FileManagerUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        bucket_id = request.data.get('bucket_id') or request.query_params.get('bucket_id')
+
         try:
-            upload_musica_file(musica, serializer.validated_data['file'])
-        except BucketServiceError as exc:
-            return Response(
-                {'error': {'code': exc.code, 'message': exc.message}},
-                status=status.HTTP_400_BAD_REQUEST,
+            bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
+            result = upload_file_to_folder(
+                bucket,
+                prefix=serializer.validated_data.get('prefix', ''),
+                uploaded_file=serializer.validated_data['file'],
             )
+            return Response(result, status=status.HTTP_201_CREATED)
+        except BucketServiceError as exc:
+            return error_response(exc)
         except ValueError as exc:
-            return Response(
-                {'error': {'code': 'VALIDATION_ERROR', 'message': str(exc)}},
-                status=status.HTTP_400_BAD_REQUEST,
+            return error_response(
+                BucketServiceError(str(exc), 'VALIDATION_ERROR'),
             )
 
-        return Response(MusicaSerializer(musica).data, status=status.HTTP_200_OK)
+    @action(detail=False, methods=['post'], url_path='move')
+    def move(self, request):
+        """POST /api/v1/musicas/move/ — move arquivo no R2."""
+        serializer = FileManagerMoveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        bucket_id = request.data.get('bucket_id')
+
+        try:
+            bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
+            result = move_file(
+                bucket,
+                source_key=serializer.validated_data['source_key'],
+                destination_key=serializer.validated_data['destination_key'],
+            )
+            return Response({'bucket_id': bucket.id, **result})
+        except BucketServiceError as exc:
+            return error_response(exc)
+
+    @action(detail=False, methods=['post'], url_path='delete')
+    def delete(self, request):
+        """POST /api/v1/musicas/delete/ — exclui arquivos do R2."""
+        serializer = FileManagerDeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        bucket_id = request.data.get('bucket_id')
+
+        try:
+            bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
+            result = delete_files(bucket, keys=serializer.validated_data['keys'])
+            return Response({'bucket_id': bucket.id, **result})
+        except BucketServiceError as exc:
+            return error_response(exc)
+
+    @action(detail=False, methods=['post'], url_path='folders')
+    def folders(self, request):
+        """POST /api/v1/musicas/folders/ — cria subpasta no R2."""
+        serializer = FileManagerCreateFolderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        bucket_id = request.data.get('bucket_id')
+
+        try:
+            bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
+            result = create_folder(
+                bucket,
+                prefix=serializer.validated_data.get('prefix', ''),
+                folder_name=serializer.validated_data['name'],
+            )
+            return Response(
+                {'bucket_id': bucket.id, **result},
+                status=status.HTTP_201_CREATED,
+            )
+        except BucketServiceError as exc:
+            return error_response(exc)

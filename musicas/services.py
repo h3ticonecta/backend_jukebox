@@ -1,4 +1,5 @@
 import os
+import re
 
 from django.shortcuts import get_object_or_404
 
@@ -43,6 +44,16 @@ def resolve_browse_prefix(requested_prefix, root_prefix):
     return current
 
 
+def validate_key_in_root(key, root_prefix):
+    root = normalize_prefix(root_prefix)
+    if not key.startswith(root):
+        raise BucketServiceError(
+            'Operação fora da pasta permitida de músicas.',
+            'INVALID_PATH',
+        )
+    return key
+
+
 def get_media_type(extension):
     if extension in VIDEO_EXTENSIONS:
         return 'video'
@@ -74,6 +85,24 @@ def build_media_item(item):
         'size': item['size'],
         'last_modified': item['last_modified'],
     }
+
+
+def build_breadcrumbs(current_prefix, root_prefix):
+    root = normalize_prefix(root_prefix)
+    current = normalize_prefix(current_prefix)
+    breadcrumbs = [{
+        'name': folder_name_from_prefix(root.rstrip('/')) or 'Raiz',
+        'path': root,
+    }]
+
+    relative = current[len(root):].strip('/')
+    if relative:
+        path = root
+        for part in relative.split('/'):
+            path = f'{path}{part}/'
+            breadcrumbs.append({'name': part, 'path': path})
+
+    return breadcrumbs
 
 
 def extract_folder_paths(keys, root_prefix):
@@ -166,7 +195,7 @@ def browse_music_library(bucket_config, prefix=None):
     folder_paths = extract_folder_paths(all_keys, root_prefix)
     tree = build_folder_tree(root_prefix, folder_paths)
 
-    all_musicas = sorted(
+    all_files = sorted(
         [
             build_media_item(item)
             for item in all_objects
@@ -175,8 +204,8 @@ def browse_music_library(bucket_config, prefix=None):
         key=lambda item: item['name'].lower(),
     )
 
-    current_musicas = [
-        item for item in all_musicas
+    current_files = [
+        item for item in all_files
         if item['folder_path'] == current_prefix
     ]
 
@@ -192,54 +221,78 @@ def browse_music_library(bucket_config, prefix=None):
     ]
 
     return {
+        'mode': 'file_manager',
         'bucket_id': bucket_config.id,
         'bucket_name': bucket_config.bucket_name,
         'root_path': root_prefix,
         'current_path': current_prefix,
         'parent_path': get_parent_path(current_prefix, root_prefix),
+        'breadcrumbs': build_breadcrumbs(current_prefix, root_prefix),
         'tree': tree,
         'folders': current_folders,
-        'musicas': current_musicas,
-        'musicas_list': all_musicas,
+        'files': current_files,
+        'files_list': all_files,
+        'musicas': current_files,
+        'musicas_list': all_files,
         'totals': {
             'folders': len(folder_paths),
-            'musicas': len(all_musicas),
-            'audio': sum(1 for item in all_musicas if item['media_type'] == 'audio'),
-            'video': sum(1 for item in all_musicas if item['media_type'] == 'video'),
+            'files': len(all_files),
+            'audio': sum(1 for item in all_files if item['media_type'] == 'audio'),
+            'video': sum(1 for item in all_files if item['media_type'] == 'video'),
         },
     }
 
 
-def upload_musica_file(musica, uploaded_file):
+def upload_file_to_folder(bucket_config, prefix, uploaded_file):
     from musicas.models import Musica
 
+    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
+    current_prefix = resolve_browse_prefix(prefix, root_prefix)
+
     Musica.validate_audio_extension(uploaded_file.name)
+    safe_name = re.sub(r'[^\w.\-]', '_', uploaded_file.name)
+    key = f'{current_prefix}{safe_name}'
+    validate_key_in_root(key, root_prefix)
 
-    storage_key = Musica.build_storage_key(musica.pk, uploaded_file.name)
-    service = S3BucketService(musica.bucket)
+    service = S3BucketService(bucket_config)
+    service.upload_object(
+        key=key,
+        file_obj=uploaded_file.file,
+        content_type=uploaded_file.content_type,
+    )
 
-    try:
-        service.upload_object(
-            key=storage_key,
-            file_obj=uploaded_file.file,
-            content_type=uploaded_file.content_type,
-        )
-    except BucketServiceError:
-        raise
-
-    musica.storage_key = storage_key
-    musica.file_size = uploaded_file.size
-    musica.content_type = uploaded_file.content_type or ''
-    musica.save(update_fields=['storage_key', 'file_size', 'content_type', 'updated_at'])
-    return musica
+    return {
+        'key': key,
+        'name': safe_name,
+        'folder_path': current_prefix,
+        'media_url': bucket_config.get_public_url(key),
+    }
 
 
-def delete_musica_file(musica):
-    if not musica.storage_key:
-        return
+def move_file(bucket_config, source_key, destination_key):
+    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
+    validate_key_in_root(source_key, root_prefix)
+    validate_key_in_root(destination_key, root_prefix)
 
-    service = S3BucketService(musica.bucket)
-    try:
-        service.delete_objects([musica.storage_key])
-    except BucketServiceError:
-        raise
+    service = S3BucketService(bucket_config)
+    return service.move_object(source_key, destination_key)
+
+
+def delete_files(bucket_config, keys):
+    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
+    for key in keys:
+        validate_key_in_root(key, root_prefix)
+
+    service = S3BucketService(bucket_config)
+    return service.delete_objects(keys)
+
+
+def create_folder(bucket_config, prefix, folder_name):
+    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
+    current_prefix = resolve_browse_prefix(prefix, root_prefix)
+    safe_name = re.sub(r'[^\w.\-]', '_', folder_name.strip())
+    folder_key = f'{current_prefix}{safe_name}/'
+    validate_key_in_root(folder_key, root_prefix)
+
+    service = S3BucketService(bucket_config)
+    return service.create_folder(folder_key)
