@@ -20,6 +20,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 | [Buckets CRUD](./contratos/04-buckets-crud.md) | `/api/v1/buckets/` | Cadastrar conexões S3/R2 |
 | [Bucket Objects](./contratos/05-bucket-objects.md) | `/api/v1/buckets/{id}/objects/` | Gerenciar arquivos no bucket |
 | [Músicas File Manager](./contratos/06-musicas-listar.md) | `GET /api/v1/musicas/` | Navegar, upload, mover e excluir no R2 |
+| [Máquinas](./contratos/09-maquinas.md) | `/api/v1/maquinas/` | Cadastrar jukebox e vincular com usuário/senha |
 
 ## 3. Fluxo de autenticação
 

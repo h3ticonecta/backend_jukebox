@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'buckets.apps.BucketsConfig',
     'musicas.apps.MusicasConfig',
+    'maquinas.apps.MaquinasConfig',
 ]
 
 MIDDLEWARE = [
