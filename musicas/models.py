@@ -37,8 +37,8 @@ class Musica(models.Model):
     updated_at = models.DateTimeField('atualizado em', auto_now=True)
 
     class Meta:
-        verbose_name = 'música'
-        verbose_name_plural = 'músicas'
+        verbose_name = 'biblioteca de músicas'
+        verbose_name_plural = 'biblioteca de músicas'
         ordering = ['-created_at']
 
     def __str__(self):
