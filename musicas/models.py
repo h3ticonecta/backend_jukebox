@@ -5,13 +5,15 @@ from django.db import models
 
 from buckets.models import BucketConfig
 
-ALLOWED_MEDIA_EXTENSIONS = {'.mp3', '.mp4', '.wav', '.ogg', '.m4a', '.flac'}
-
 AUDIO_EXTENSIONS = {'.mp3', '.wav', '.ogg', '.m4a', '.flac'}
 VIDEO_EXTENSIONS = {'.mp4'}
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
+
+ALLOWED_MEDIA_EXTENSIONS = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS
+ALLOWED_LIBRARY_EXTENSIONS = ALLOWED_MEDIA_EXTENSIONS | IMAGE_EXTENSIONS
 
 # Compatibilidade com código existente
-ALLOWED_AUDIO_EXTENSIONS = ALLOWED_MEDIA_EXTENSIONS
+ALLOWED_AUDIO_EXTENSIONS = ALLOWED_LIBRARY_EXTENSIONS
 
 
 def musica_upload_path(instance, filename):
@@ -53,8 +55,8 @@ class Musica(models.Model):
     @staticmethod
     def validate_audio_extension(filename):
         extension = os.path.splitext(filename)[1].lower()
-        if extension not in ALLOWED_MEDIA_EXTENSIONS:
-            allowed = ', '.join(sorted(ALLOWED_MEDIA_EXTENSIONS))
+        if extension not in ALLOWED_LIBRARY_EXTENSIONS:
+            allowed = ', '.join(sorted(ALLOWED_LIBRARY_EXTENSIONS))
             raise ValueError(f'Extensão não permitida. Use: {allowed}')
         return extension
 

@@ -25,10 +25,16 @@
   .fm-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
   .fm-badge.audio { background: #1f6feb33; color: #58a6ff; }
   .fm-badge.video { background: #a371f733; color: #d2a8ff; }
+  .fm-badge.image { background: #3fb95033; color: #3fb950; }
   .fm-empty { padding: 40px; text-align: center; opacity: 0.7; }
   .fm-folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
   .fm-folder-card { border: 1px solid var(--hairline-color, #ddd); border-radius: 8px; padding: 14px; text-align: center; }
   .fm-folder-card a { text-decoration: none; color: inherit; display: block; }
+  .fm-cover { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; margin-bottom: 8px; background: #222; }
+  .fm-cover-placeholder { width: 100%; aspect-ratio: 1; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; font-size: 36px; background: #2222; }
+  .fm-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; vertical-align: middle; }
+  .fm-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .fm-image-card { border: 1px solid var(--hairline-color, #ddd); border-radius: 8px; padding: 10px; text-align: center; }
   .fm-error { background: #f8d7da; color: #842029; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
   .fm-inline-form { display: inline-flex; gap: 8px; align-items: center; }
   @media (max-width: 900px) { .fm-layout { grid-template-columns: 1fr; } }
@@ -38,7 +44,7 @@
 {% block content %}
 <div id="content-main">
   <h1>Biblioteca de Músicas</h1>
-  <p style="opacity:0.8;">Gerenciador de arquivos do R2 — navegue pelas pastas e gerencie mp3/mp4 diretamente no bucket.</p>
+  <p style="opacity:0.8;">Gerenciador de arquivos do R2 — pastas, músicas, vídeos e fotos de álbum (jpg/png).</p>
 
   {% if error %}
     <div class="fm-error">
@@ -62,7 +68,7 @@
       <form class="fm-inline-form" method="post" action="{% url 'admin:musicas_musica_upload' %}" enctype="multipart/form-data">
         {% csrf_token %}
         <input type="hidden" name="prefix" value="{{ browse.current_path }}">
-        <input type="file" name="file" accept=".mp3,.mp4,.wav,.ogg,.m4a,.flac" required>
+        <input type="file" name="file" accept=".mp3,.mp4,.wav,.ogg,.m4a,.flac,.jpg,.jpeg,.png" required>
         <input type="submit" value="Enviar arquivo" class="default">
       </form>
 
@@ -74,8 +80,8 @@
       </form>
 
       <span style="margin-left:auto; opacity:0.7;">
-        {{ browse.totals.current_folders }} pasta(s) neste nível · {{ browse.totals.current_files }} arquivo(s)
-        · {{ browse.totals.files }} no total
+        {{ browse.totals.current_folders }} pasta(s) · {{ browse.totals.current_files }} faixa(s)
+        · {{ browse.totals.current_images }} capa(s) · {{ browse.totals.files }} no total
       </span>
     </div>
 
@@ -94,9 +100,29 @@
             {% for folder in browse.folders %}
               <div class="fm-folder-card">
                 <a href="?prefix={{ folder.path|urlencode }}">
-                  <div style="font-size:28px;">📁</div>
+                  {% if folder.cover_url %}
+                    <img class="fm-cover" src="{{ folder.cover_url }}" alt="{{ folder.name }}">
+                  {% else %}
+                    <div class="fm-cover-placeholder">📁</div>
+                  {% endif %}
                   <strong>{{ folder.name }}</strong>
                 </a>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% if browse.images %}
+          <h3>Fotos de álbum</h3>
+          <div class="fm-image-grid">
+            {% for image in browse.images %}
+              <div class="fm-image-card">
+                {% if image.media_url %}
+                  <a href="{{ image.media_url }}" target="_blank" rel="noopener">
+                    <img class="fm-cover" src="{{ image.media_url }}" alt="{{ image.name }}">
+                  </a>
+                {% endif %}
+                <strong>{{ image.name }}</strong>
               </div>
             {% endfor %}
           </div>
@@ -111,6 +137,7 @@
               <thead>
                 <tr>
                   <th></th>
+                  <th>Capa</th>
                   <th>Nome</th>
                   <th>Tipo</th>
                   <th>Tamanho</th>
@@ -122,6 +149,11 @@
                 {% for file in browse.files %}
                   <tr>
                     <td><input type="checkbox" name="keys" value="{{ file.key }}"></td>
+                    <td>
+                      {% if file.cover_url %}
+                        <img class="fm-thumb" src="{{ file.cover_url }}" alt="">
+                      {% endif %}
+                    </td>
                     <td>
                       <strong>{{ file.name }}</strong><br>
                       <small style="opacity:0.7;">{{ file.key }}</small>
@@ -145,7 +177,7 @@
             </p>
           </form>
         {% else %}
-          <div class="fm-empty">Nenhum arquivo mp3/mp4 nesta pasta.</div>
+          <div class="fm-empty">Nenhum arquivo de áudio/vídeo nesta pasta.</div>
         {% endif %}
       </section>
     </div>

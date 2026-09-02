@@ -6,7 +6,15 @@ from django.shortcuts import get_object_or_404
 from buckets.exceptions import BucketServiceError
 from buckets.models import BucketConfig
 from buckets.services import S3BucketService
-from musicas.models import ALLOWED_MEDIA_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
+from musicas.models import (
+    ALLOWED_LIBRARY_EXTENSIONS,
+    ALLOWED_MEDIA_EXTENSIONS,
+    AUDIO_EXTENSIONS,
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+)
+
+COVER_FILENAMES = ('cover', 'folder', 'album', 'artwork', 'front', 'capa')
 
 
 MUSIC_FOLDER_NAMES = {'musicas', 'músicas', 'music', 'songs'}
@@ -120,6 +128,8 @@ def get_media_type(extension):
         return 'video'
     if extension in AUDIO_EXTENSIONS:
         return 'audio'
+    if extension in IMAGE_EXTENSIONS:
+        return 'image'
     return 'other'
 
 
@@ -128,11 +138,45 @@ def is_media_key(key):
     return extension in ALLOWED_MEDIA_EXTENSIONS
 
 
+def is_library_key(key):
+    extension = os.path.splitext(key)[1].lower()
+    return extension in ALLOWED_LIBRARY_EXTENSIONS
+
+
+def pick_folder_cover(images):
+    if not images:
+        return None
+
+    by_stem = {}
+    for image in images:
+        stem = image['title'].lower()
+        by_stem.setdefault(stem, image)
+
+    for name in COVER_FILENAMES:
+        if name in by_stem:
+            return by_stem[name]
+
+    return sorted(images, key=lambda item: item['name'].lower())[0]
+
+
+def cover_payload(cover):
+    if not cover:
+        return None, None
+    payload = {
+        'name': cover['name'],
+        'key': cover['key'],
+        'media_url': cover.get('media_url'),
+    }
+    return cover.get('media_url'), payload
+
+
 def build_media_item(item):
     key = item['key']
     filename = os.path.basename(key)
     title, extension = os.path.splitext(filename)
     folder_path = normalize_prefix('/'.join(key.split('/')[:-1]))
+    media_type = get_media_type(extension.lower())
+    public_url = item.get('public_url')
 
     return {
         'name': filename,
@@ -140,9 +184,10 @@ def build_media_item(item):
         'key': key,
         'folder_path': folder_path,
         'extension': extension.lower(),
-        'media_type': get_media_type(extension.lower()),
-        'media_url': item.get('public_url'),
-        'audio_url': item.get('public_url'),
+        'media_type': media_type,
+        'media_url': public_url,
+        'audio_url': public_url if media_type != 'image' else None,
+        'cover_url': public_url if media_type == 'image' else None,
         'size': item['size'],
         'last_modified': item['last_modified'],
     }
@@ -192,8 +237,9 @@ def extract_folder_paths(keys, root_prefix):
     return sorted(folders, key=str.lower)
 
 
-def build_folder_tree(root_prefix, folder_paths):
+def build_folder_tree(root_prefix, folder_paths, covers_by_folder=None):
     root = normalize_prefix(root_prefix)
+    covers_by_folder = covers_by_folder or {}
     tree_map = {}
 
     for folder_path in folder_paths:
@@ -219,6 +265,7 @@ def build_folder_tree(root_prefix, folder_paths):
             children.append({
                 'name': node['name'],
                 'path': node['path'],
+                'cover_url': covers_by_folder.get(node['path']),
                 'children': map_to_list(node['children_map']),
             })
         return children
@@ -226,6 +273,7 @@ def build_folder_tree(root_prefix, folder_paths):
     return {
         'name': folder_name_from_prefix(root.rstrip('/')) or root,
         'path': root,
+        'cover_url': covers_by_folder.get(root),
         'children': map_to_list(tree_map),
     }
 
@@ -266,21 +314,47 @@ def browse_music_library(bucket_config, prefix=None):
         if key.endswith('/') and key.startswith(root_prefix) and key != current_prefix:
             folder_paths.add(normalize_prefix(key))
     folder_paths = sorted(folder_paths, key=str.lower)
-    tree = build_folder_tree(root_prefix, folder_paths)
 
-    all_files = sorted(
+    all_items = sorted(
         [
             build_media_item(item)
             for item in all_objects
-            if is_media_key(item['key']) and not item['key'].endswith('/')
+            if is_library_key(item['key']) and not item['key'].endswith('/')
         ],
         key=lambda item: item['name'].lower(),
     )
+    all_files = [item for item in all_items if item['media_type'] in {'audio', 'video'}]
+    all_images = [item for item in all_items if item['media_type'] == 'image']
+
+    images_by_folder = {}
+    for image in all_images:
+        images_by_folder.setdefault(image['folder_path'], []).append(image)
+
+    covers = {}
+    cover_urls = {}
+    for folder_path, images in images_by_folder.items():
+        cover = pick_folder_cover(images)
+        if not cover:
+            continue
+        covers[folder_path] = cover
+        cover_urls[folder_path] = cover.get('media_url')
+
+    for item in all_files:
+        cover_url, cover_data = cover_payload(covers.get(item['folder_path']))
+        item['cover_url'] = cover_url
+        item['cover'] = cover_data
+
+    tree = build_folder_tree(root_prefix, folder_paths, cover_urls)
 
     current_files = [
         item for item in all_files
         if item['folder_path'] == current_prefix
     ]
+    current_images = [
+        item for item in all_images
+        if item['folder_path'] == current_prefix
+    ]
+    current_cover_url, current_cover = cover_payload(covers.get(current_prefix))
 
     current_folder_paths = [
         folder_path for folder_path in folder_paths
@@ -292,6 +366,8 @@ def browse_music_library(bucket_config, prefix=None):
         {
             'name': folder_name_from_prefix(folder_path),
             'path': folder_path,
+            'cover_url': cover_urls.get(folder_path),
+            'cover': cover_payload(covers.get(folder_path))[1],
         }
         for folder_path in current_folder_paths
     ]
@@ -303,18 +379,24 @@ def browse_music_library(bucket_config, prefix=None):
         'root_path': root_prefix,
         'current_path': current_prefix,
         'parent_path': get_parent_path(current_prefix, root_prefix),
+        'cover_url': current_cover_url,
+        'cover': current_cover,
         'breadcrumbs': build_breadcrumbs(current_prefix, root_prefix),
         'tree': tree,
         'folders': current_folders,
         'files': current_files,
+        'images': current_images,
         'files_list': all_files,
+        'images_list': all_images,
         'musicas': current_files,
         'musicas_list': all_files,
         'totals': {
             'folders': len(folder_paths),
             'files': len(all_files),
+            'images': len(all_images),
             'current_folders': len(current_folders),
             'current_files': len(current_files),
+            'current_images': len(current_images),
             'audio': sum(1 for item in all_files if item['media_type'] == 'audio'),
             'video': sum(1 for item in all_files if item['media_type'] == 'video'),
         },
