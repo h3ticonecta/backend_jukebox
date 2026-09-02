@@ -352,13 +352,13 @@ def assemble_browse(
     all_items = sorted(all_items, key=lambda item: item['name'].lower())
     playable = [item for item in all_items if item['media_type'] in {'audio', 'video'}]
     all_images = [item for item in all_items if item['media_type'] == 'image']
-    all_files = playable
+    listed_files = sorted(playable + all_images, key=lambda item: item['name'].lower())
 
     if search:
         term = search.strip().lower()
         if term:
-            all_files = [
-                item for item in all_files
+            listed_files = [
+                item for item in listed_files
                 if term in item['name'].lower() or term in item['key'].lower()
             ]
 
@@ -375,15 +375,20 @@ def assemble_browse(
         covers[folder_path] = cover
         cover_urls[folder_path] = cover.get('media_url')
 
-    for item in all_files:
+    for item in listed_files:
+        if item['media_type'] == 'image':
+            item['cover_url'] = item.get('media_url')
+            item['cover'] = cover_payload(item)[1]
+            continue
         cover_url, cover_data = cover_payload(covers.get(item['folder_path']))
         item['cover_url'] = cover_url
         item['cover'] = cover_data
 
     tree = build_folder_tree(root_prefix, folder_paths, cover_urls)
-    current_files = [item for item in all_files if item['folder_path'] == current_prefix]
+    current_files = [item for item in listed_files if item['folder_path'] == current_prefix]
     if search and search.strip():
-        current_files = all_files
+        current_files = listed_files
+    current_playable = [item for item in current_files if item['media_type'] in {'audio', 'video'}]
     current_images = [item for item in all_images if item['folder_path'] == current_prefix]
     current_cover_url, current_cover = cover_payload(covers.get(current_prefix))
     current_folder_paths = [
@@ -426,10 +431,10 @@ def assemble_browse(
         'folders': current_folders,
         'files': current_files,
         'images': current_images,
-        'files_list': all_files,
+        'files_list': listed_files,
         'images_list': all_images,
-        'musicas': current_files,
-        'musicas_list': all_files,
+        'musicas': current_playable,
+        'musicas_list': playable,
         'totals': {
             'folders': len(folder_paths),
             'files': len(playable),

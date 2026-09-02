@@ -183,7 +183,9 @@
                   <tr>
                     <td><input type="checkbox" name="keys" value="{{ file.key }}"></td>
                     <td>
-                      {% if file.cover_url %}
+                      {% if file.media_type == 'image' and file.media_url %}
+                        <img class="fm-thumb" src="{{ file.media_url }}" alt="">
+                      {% elif file.cover_url %}
                         <img class="fm-thumb" src="{{ file.cover_url }}" alt="">
                       {% endif %}
                     </td>
@@ -210,7 +212,7 @@
             </p>
           </form>
         {% else %}
-          <div class="fm-empty">Nenhum arquivo de áudio/vídeo nesta pasta.</div>
+          <div class="fm-empty">Nenhum arquivo nesta pasta.</div>
         {% endif %}
       </section>
     </div>

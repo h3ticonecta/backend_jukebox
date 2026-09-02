@@ -154,7 +154,8 @@ GET /api/v1/musicas/?q=love
 | `tree` | Árvore lateral (sidebar); `cover_url` opcional |
 | `breadcrumbs` | Barra de navegação |
 | `folders` | Ícones/capas de pasta na área principal |
-| `files` | Lista de músicas/vídeos da pasta atual (`cover_url` = capa do álbum) |
+| `files` | Lista da pasta atual: áudio, vídeo e imagens (`media_type`) |
+| `musicas` | Somente áudio/vídeo da pasta atual (para o player) |
 | `images` | Fotos jpg/png da pasta atual |
 | `files_list` | Busca global de faixas em todas as pastas |
 | `images_list` | Todas as capas/fotos |
@@ -251,5 +252,5 @@ POST /api/v1/musicas/folders/
 - Navegação e busca **não** listam o R2; usam o catálogo PostgreSQL
 - Use `POST /musicas/sync/` ou o botão **Sincronizar biblioteca** no Admin após mudanças feitas direto no bucket
 - Upload, exclusão, mover e criar pasta já atualizam o cache
-- Campos `musicas` e `musicas_list` mantidos como alias de `files` e `files_list` (somente áudio/vídeo)
-- JPG/PNG não entram em `files` para o player não tentar tocá-los; use `images` / `cover_url`
+- Campos `musicas` e `musicas_list` são somente áudio/vídeo, para o player
+- `files` e `files_list` incluem também jpg/png (`media_type: image`)
