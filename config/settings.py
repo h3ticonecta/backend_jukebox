@@ -15,6 +15,7 @@ from pathlib import Path
 
 import dj_database_url
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -109,13 +110,30 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-if os.environ.get('DATABASE_URL'):
+IS_RAILWAY = bool(
+    os.environ.get('RAILWAY_ENVIRONMENT')
+    or os.environ.get('RAILWAY_PROJECT_ID')
+    or os.environ.get('RAILWAY_SERVICE_NAME')
+)
+
+DATABASE_URL = (
+    os.environ.get('DATABASE_URL')
+    or os.environ.get('DATABASE_PRIVATE_URL')
+)
+
+if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
+            default=DATABASE_URL,
             conn_max_age=600,
             conn_health_checks=True,
         ),
     }
+elif IS_RAILWAY:
+    raise ImproperlyConfigured(
+        'DATABASE_URL não configurada no Railway. '
+        'Vincule o serviço PostgreSQL ao backend em Variables → Add Reference.',
+    )
 else:
     DATABASES = {
         'default': {

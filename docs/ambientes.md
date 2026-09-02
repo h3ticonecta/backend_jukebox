@@ -38,12 +38,52 @@ NEXT_PUBLIC_API_BASE_URL=https://backendjukebox-dev.up.railway.app
 
 ## Banco de dados
 
-| Ambiente | Engine |
-|---|---|
-| Local (sem `DATABASE_URL`) | SQLite (`db.sqlite3`) |
-| Railway (com `DATABASE_URL`) | PostgreSQL |
+| Ambiente | Engine | Persistência |
+|---|---|---|
+| Local (sem `DATABASE_URL`) | SQLite (`db.sqlite3`) | Arquivo local |
+| Railway (com `DATABASE_URL`) | PostgreSQL | **Persistente** |
 
-O frontend **não acessa o banco diretamente**. Toda comunicação é via HTTP com o backend.
+> **Importante:** sem `DATABASE_URL` no Railway, o Django usa SQLite no disco do container — **os dados somem a cada redeploy** (buckets, músicas, etc.).
+
+### Como vincular PostgreSQL no Railway
+
+1. Abra o serviço **Backend** → **Variables**
+2. Clique em **Add Reference** (ou **New Variable** → referência)
+3. Selecione o serviço **PostgreSQL** → `DATABASE_URL`
+4. Faça **redeploy**
+
+### Verificar se está usando PostgreSQL
+
+```bash
+curl https://backendjukebox-dev.up.railway.app/health/
+```
+
+Resposta esperada:
+
+```json
+{
+  "status": "ok",
+  "database": "postgresql",
+  "persistent": true
+}
+```
+
+Se `"database": "sqlite"` em produção, o PostgreSQL **não está vinculado**.
+
+## Bootstrap automático do bucket (Railway)
+
+Configure estas variáveis para recriar/atualizar o bucket a cada deploy:
+
+| Variável | Exemplo |
+|---|---|
+| `BUCKET_CONFIG_NAME` | `jukebox-prod` |
+| `BUCKET_PROVIDER` | `cloudflare_r2` |
+| `BUCKET_ENDPOINT_URL` | `https://9f7ffe....r2.cloudflarestorage.com` |
+| `BUCKET_PUBLIC_BASE_URL` | `https://pub-b48c490....r2.dev` |
+| `BUCKET_NAME` | `jukebox` |
+| `BUCKET_ACCESS_KEY_ID` | sua access key |
+| `BUCKET_SECRET_ACCESS_KEY` | sua secret key |
+| `BUCKET_MUSIC_ROOT_PREFIX` | `jukebox/Musicas/` |
 
 ## Admin (uso interno)
 
