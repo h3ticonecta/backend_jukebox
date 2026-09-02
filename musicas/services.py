@@ -9,10 +9,66 @@ from buckets.services import S3BucketService
 from musicas.models import ALLOWED_MEDIA_EXTENSIONS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 
 
+MUSIC_FOLDER_NAMES = {'musicas', 'músicas', 'music', 'songs'}
+
+
 def normalize_prefix(prefix):
     if not prefix:
         return ''
     return prefix if prefix.endswith('/') else f'{prefix}/'
+
+
+def strip_bucket_from_prefix(prefix, bucket_name):
+    current = normalize_prefix(prefix)
+    name = (bucket_name or '').strip('/')
+    if name and current.startswith(f'{name}/'):
+        return current[len(name) + 1:]
+    return current
+
+
+def listing_has_content(listing, prefix):
+    prefix = normalize_prefix(prefix)
+    folders = listing.get('folders') or []
+    objects = [
+        item for item in listing.get('objects') or []
+        if item.get('key') not in {prefix, prefix.rstrip('/')}
+    ]
+    return bool(folders or objects)
+
+
+def resolve_music_root_prefix(bucket_config, service=None):
+    cached = getattr(bucket_config, '_effective_music_root', None)
+    if cached is not None:
+        return cached
+
+    service = service or S3BucketService(bucket_config)
+    configured = normalize_prefix(bucket_config.music_root_prefix)
+    candidates = []
+    for candidate in (
+        configured,
+        strip_bucket_from_prefix(configured, bucket_config.bucket_name),
+        'Musicas/',
+    ):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+
+    for candidate in candidates:
+        listing = service.list_objects(prefix=candidate, max_keys=50)
+        if listing_has_content(listing, candidate):
+            bucket_config._effective_music_root = candidate
+            return candidate
+
+    root_listing = service.list_objects(prefix='', max_keys=200)
+    for folder in root_listing.get('folders') or []:
+        name = folder_name_from_prefix(folder).lower()
+        if name in MUSIC_FOLDER_NAMES:
+            resolved = normalize_prefix(folder)
+            bucket_config._effective_music_root = resolved
+            return resolved
+
+    resolved = candidates[0] if candidates else ''
+    bucket_config._effective_music_root = resolved
+    return resolved
 
 
 def folder_name_from_prefix(prefix):
@@ -32,16 +88,21 @@ def get_parent_path(current_prefix, root_prefix):
     return parent
 
 
-def resolve_browse_prefix(requested_prefix, root_prefix):
+def resolve_browse_prefix(requested_prefix, root_prefix, bucket_name=None):
     root = normalize_prefix(root_prefix)
 
     if not requested_prefix:
         return root
 
-    current = normalize_prefix(requested_prefix)
-    if not current.startswith(root):
-        return root
-    return current
+    candidates = [normalize_prefix(requested_prefix)]
+    stripped = strip_bucket_from_prefix(requested_prefix, bucket_name)
+    if stripped not in candidates:
+        candidates.append(stripped)
+
+    for current in candidates:
+        if current.startswith(root):
+            return current
+    return root
 
 
 def validate_key_in_root(key, root_prefix):
@@ -185,14 +246,26 @@ def get_music_bucket(bucket_id=None):
 
 
 def browse_music_library(bucket_config, prefix=None):
-    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
-    current_prefix = resolve_browse_prefix(prefix, root_prefix)
-
     service = S3BucketService(bucket_config)
+    root_prefix = resolve_music_root_prefix(bucket_config, service=service)
+    current_prefix = resolve_browse_prefix(
+        prefix,
+        root_prefix,
+        bucket_name=bucket_config.bucket_name,
+    )
+
     all_objects = service.list_all_objects(prefix=root_prefix)
     all_keys = [item['key'] for item in all_objects]
+    level = service.list_directory(current_prefix)
 
-    folder_paths = extract_folder_paths(all_keys, root_prefix)
+    folder_paths = set(extract_folder_paths(all_keys, root_prefix))
+    for folder_path in level['folders']:
+        folder_paths.add(normalize_prefix(folder_path))
+    for item in level['objects']:
+        key = item['key']
+        if key.endswith('/') and key.startswith(root_prefix) and key != current_prefix:
+            folder_paths.add(normalize_prefix(key))
+    folder_paths = sorted(folder_paths, key=str.lower)
     tree = build_folder_tree(root_prefix, folder_paths)
 
     all_files = sorted(
@@ -209,15 +282,18 @@ def browse_music_library(bucket_config, prefix=None):
         if item['folder_path'] == current_prefix
     ]
 
+    current_folder_paths = [
+        folder_path for folder_path in folder_paths
+        if folder_path.startswith(current_prefix)
+        and folder_path != current_prefix
+        and folder_path[len(current_prefix):].strip('/').count('/') == 0
+    ]
     current_folders = [
         {
             'name': folder_name_from_prefix(folder_path),
             'path': folder_path,
         }
-        for folder_path in folder_paths
-        if folder_path.startswith(current_prefix)
-        and folder_path != current_prefix
-        and folder_path[len(current_prefix):].strip('/').count('/') == 0
+        for folder_path in current_folder_paths
     ]
 
     return {
@@ -237,6 +313,8 @@ def browse_music_library(bucket_config, prefix=None):
         'totals': {
             'folders': len(folder_paths),
             'files': len(all_files),
+            'current_folders': len(current_folders),
+            'current_files': len(current_files),
             'audio': sum(1 for item in all_files if item['media_type'] == 'audio'),
             'video': sum(1 for item in all_files if item['media_type'] == 'video'),
         },
@@ -246,8 +324,12 @@ def browse_music_library(bucket_config, prefix=None):
 def upload_file_to_folder(bucket_config, prefix, uploaded_file):
     from musicas.models import Musica
 
-    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
-    current_prefix = resolve_browse_prefix(prefix, root_prefix)
+    root_prefix = resolve_music_root_prefix(bucket_config)
+    current_prefix = resolve_browse_prefix(
+        prefix,
+        root_prefix,
+        bucket_name=bucket_config.bucket_name,
+    )
 
     Musica.validate_audio_extension(uploaded_file.name)
     safe_name = re.sub(r'[^\w.\-]', '_', uploaded_file.name)
@@ -270,7 +352,7 @@ def upload_file_to_folder(bucket_config, prefix, uploaded_file):
 
 
 def move_file(bucket_config, source_key, destination_key):
-    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
+    root_prefix = resolve_music_root_prefix(bucket_config)
     validate_key_in_root(source_key, root_prefix)
     validate_key_in_root(destination_key, root_prefix)
 
@@ -279,7 +361,7 @@ def move_file(bucket_config, source_key, destination_key):
 
 
 def delete_files(bucket_config, keys):
-    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
+    root_prefix = resolve_music_root_prefix(bucket_config)
     for key in keys:
         validate_key_in_root(key, root_prefix)
 
@@ -288,8 +370,12 @@ def delete_files(bucket_config, keys):
 
 
 def create_folder(bucket_config, prefix, folder_name):
-    root_prefix = normalize_prefix(bucket_config.music_root_prefix)
-    current_prefix = resolve_browse_prefix(prefix, root_prefix)
+    root_prefix = resolve_music_root_prefix(bucket_config)
+    current_prefix = resolve_browse_prefix(
+        prefix,
+        root_prefix,
+        bucket_name=bucket_config.bucket_name,
+    )
     safe_name = re.sub(r'[^\w.\-]', '_', folder_name.strip())
     folder_key = f'{current_prefix}{safe_name}/'
     validate_key_in_root(folder_key, root_prefix)

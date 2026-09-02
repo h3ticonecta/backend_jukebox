@@ -64,6 +64,29 @@ class S3BucketService:
         except Exception as exc:
             raise handle_boto_error(exc) from exc
 
+    def list_directory(self, prefix=''):
+        objects = []
+        folders = []
+        continuation_token = None
+
+        while True:
+            listing = self.list_objects(
+                prefix=prefix,
+                continuation_token=continuation_token,
+                max_keys=1000,
+            )
+            objects.extend(listing['objects'])
+            folders.extend(listing['folders'])
+            if not listing['is_truncated']:
+                break
+            continuation_token = listing['next_continuation_token']
+
+        return {
+            'prefix': prefix,
+            'objects': objects,
+            'folders': folders,
+        }
+
     def list_all_objects(self, prefix=''):
         try:
             objects = []
