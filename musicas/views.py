@@ -38,10 +38,12 @@ class MusicaFileManagerViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
     authentication_classes = [SessionAuthentication, TokenAuthentication]
 
-    def get_authentication_classes(self):
-        if self.action in ('list', 'browse'):
-            return [TokenAuthentication, MaquinaAuthentication, SessionAuthentication]
-        return [SessionAuthentication, TokenAuthentication]
+    def get_authenticators(self):
+        if getattr(self, 'action', None) in ('list', 'browse'):
+            auth_classes = [TokenAuthentication, MaquinaAuthentication, SessionAuthentication]
+        else:
+            auth_classes = [SessionAuthentication, TokenAuthentication]
+        return [auth() for auth in auth_classes]
 
     def list(self, request):
         """GET /api/v1/musicas/ — navega o catálogo em cache no PostgreSQL."""
