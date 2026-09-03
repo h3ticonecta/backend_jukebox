@@ -39,7 +39,11 @@ class MusicaFileManagerViewSet(viewsets.ViewSet):
     authentication_classes = [SessionAuthentication, TokenAuthentication]
 
     def get_authenticators(self):
-        if getattr(self, 'action', None) in ('list', 'browse'):
+        request = getattr(self, 'request', None)
+        method = request.method.upper() if request else 'GET'
+        action = getattr(self, 'action', None)
+
+        if method in ('GET', 'HEAD') or action in ('list', 'browse'):
             auth_classes = [TokenAuthentication, MaquinaAuthentication, SessionAuthentication]
         else:
             auth_classes = [SessionAuthentication, TokenAuthentication]
