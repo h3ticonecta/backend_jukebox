@@ -115,6 +115,12 @@ class BibliotecaItem(models.Model):
     size = models.PositiveBigIntegerField('tamanho', default=0)
     last_modified = models.CharField('modificado em', max_length=64, blank=True)
     media_url = models.CharField('URL pública', max_length=2048, blank=True)
+    cover_key = models.CharField(
+        'chave da capa',
+        max_length=1024,
+        blank=True,
+        help_text='Imagem usada como capa da pasta (própria ou herdada do primeiro filho).',
+    )
 
     class Meta:
         verbose_name = 'item da biblioteca'

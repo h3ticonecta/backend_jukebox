@@ -268,6 +268,7 @@ POST /api/v1/musicas/folders/
 
 - Navegação e busca **não** listam o R2; usam o catálogo PostgreSQL
 - Use `POST /musicas/sync/` ou o botão **Sincronizar biblioteca** no Admin após mudanças feitas direto no bucket
+- `cover_url` das pastas é **pré-calculado no sync** (capa própria ou herdada do primeiro subfolder com capa)
 - Upload, exclusão, mover e criar pasta já atualizam o cache
 - Campos `musicas` e `musicas_list` são somente áudio/vídeo, para o player
 - `files` e `files_list` incluem também jpg/png (`media_type: image`)

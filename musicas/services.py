@@ -164,6 +164,103 @@ def pick_folder_cover(images):
     return sorted(images, key=lambda item: item['name'].lower())[0]
 
 
+def get_direct_child_folders(folder_path, folder_paths):
+    folder_path = normalize_prefix(folder_path)
+    children = [
+        path for path in folder_paths
+        if path != folder_path
+        and path.startswith(folder_path)
+        and path[len(folder_path):].strip('/').count('/') == 0
+    ]
+    return sorted(children, key=lambda path: folder_name_from_prefix(path).lower())
+
+
+def resolve_all_folder_covers(folder_paths, all_items):
+    """Calcula capa de cada pasta: direta na pasta ou herdada do primeiro filho com capa."""
+    folder_paths = sorted({normalize_prefix(path) for path in folder_paths if path}, key=str.lower)
+    images_by_folder = {}
+    for item in all_items:
+        if item.get('media_type') == 'image':
+            images_by_folder.setdefault(item['folder_path'], []).append(item)
+
+    direct_covers = {}
+    for folder_path in folder_paths:
+        images = images_by_folder.get(folder_path, [])
+        if images:
+            cover = pick_folder_cover(images)
+            if cover:
+                direct_covers[folder_path] = cover
+
+    resolved = {}
+    for folder_path in sorted(folder_paths, key=lambda path: path.count('/'), reverse=True):
+        if folder_path in direct_covers:
+            resolved[folder_path] = direct_covers[folder_path]
+            continue
+        for child_path in get_direct_child_folders(folder_path, folder_paths):
+            child_cover = resolved.get(child_path)
+            if child_cover:
+                resolved[folder_path] = child_cover
+                break
+
+    return resolved
+
+
+def load_folder_covers_from_db(bucket_config):
+    covers = {}
+    rows = BibliotecaItem.objects.filter(
+        bucket=bucket_config,
+        kind=BibliotecaItem.KIND_FOLDER,
+    ).exclude(media_url='')
+    for row in rows:
+        cover_key = row.cover_key or ''
+        covers[row.key] = {
+            'name': os.path.basename(cover_key) if cover_key else row.name,
+            'key': cover_key,
+            'media_url': row.media_url,
+        }
+    return covers
+
+
+def rebuild_folder_covers(bucket_config):
+    if not catalog_is_ready(bucket_config):
+        return
+
+    folder_paths = list(
+        BibliotecaItem.objects.filter(
+            bucket=bucket_config,
+            kind=BibliotecaItem.KIND_FOLDER,
+        ).values_list('key', flat=True),
+    )
+    file_rows = BibliotecaItem.objects.filter(
+        bucket=bucket_config,
+        kind=BibliotecaItem.KIND_FILE,
+    )
+    all_items = [item_from_model(row) for row in file_rows]
+    folder_covers = resolve_all_folder_covers(folder_paths, all_items)
+
+    folders = list(
+        BibliotecaItem.objects.filter(
+            bucket=bucket_config,
+            kind=BibliotecaItem.KIND_FOLDER,
+        ),
+    )
+    for folder in folders:
+        cover = folder_covers.get(folder.key)
+        if cover:
+            folder.media_url = (cover.get('media_url') or '')[:2048]
+            folder.cover_key = (cover.get('key') or '')[:1024]
+        else:
+            folder.media_url = ''
+            folder.cover_key = ''
+
+    if folders:
+        BibliotecaItem.objects.bulk_update(
+            folders,
+            ['media_url', 'cover_key'],
+            batch_size=500,
+        )
+
+
 def cover_payload(cover):
     if not cover:
         return None, None
@@ -351,6 +448,7 @@ def assemble_browse(
     all_items,
     catalog=None,
     search=None,
+    folder_covers_db=None,
 ):
     folder_paths = sorted({normalize_prefix(path) for path in folder_paths if path}, key=str.lower)
     all_items = sorted(all_items, key=lambda item: item['name'].lower())
@@ -370,14 +468,22 @@ def assemble_browse(
     for image in all_images:
         images_by_folder.setdefault(image['folder_path'], []).append(image)
 
-    covers = {}
-    cover_urls = {}
-    for folder_path, images in images_by_folder.items():
-        cover = pick_folder_cover(images)
-        if not cover:
-            continue
-        covers[folder_path] = cover
-        cover_urls[folder_path] = cover.get('media_url')
+    if folder_covers_db:
+        covers = folder_covers_db
+        cover_urls = {
+            path: cover.get('media_url')
+            for path, cover in folder_covers_db.items()
+            if cover.get('media_url')
+        }
+    else:
+        covers = {}
+        cover_urls = {}
+        for folder_path, images in images_by_folder.items():
+            cover = pick_folder_cover(images)
+            if not cover:
+                continue
+            covers[folder_path] = cover
+            cover_urls[folder_path] = cover.get('media_url')
 
     for item in listed_files:
         if item['media_type'] == 'image':
@@ -505,6 +611,7 @@ def browse_music_library(bucket_config, prefix=None, search=None):
         kind=BibliotecaItem.KIND_FILE,
     )
     all_items = [item_from_model(row) for row in file_rows]
+    folder_covers_db = load_folder_covers_from_db(bucket_config)
     return assemble_browse(
         bucket_config,
         root_prefix,
@@ -513,6 +620,7 @@ def browse_music_library(bucket_config, prefix=None, search=None):
         all_items=all_items,
         catalog=catalog,
         search=search,
+        folder_covers_db=folder_covers_db,
     )
 
 
@@ -549,11 +657,14 @@ def replace_catalog(bucket_config, snapshot):
     folder_paths = {normalize_prefix(path) for path in snapshot['folder_paths'] if path}
     folder_paths.add(root_prefix)
     items = snapshot['items']
+    sorted_folder_paths = sorted(folder_paths, key=str.lower)
+    folder_covers = resolve_all_folder_covers(sorted_folder_paths, items)
 
     rows = []
-    for path in folder_paths:
+    for path in sorted_folder_paths:
         parent = get_parent_path(path, root_prefix)
         name = folder_name_from_prefix(path) or path
+        cover = folder_covers.get(path)
         rows.append(BibliotecaItem(
             bucket=bucket_config,
             kind=BibliotecaItem.KIND_FOLDER,
@@ -565,7 +676,8 @@ def replace_catalog(bucket_config, snapshot):
             media_type='folder',
             size=0,
             last_modified='',
-            media_url='',
+            media_url=(cover.get('media_url') or '')[:2048] if cover else '',
+            cover_key=(cover.get('key') or '')[:1024] if cover else '',
         ))
 
     for item in items:
@@ -636,6 +748,7 @@ def cache_upsert_file(bucket_config, item):
         },
     )
     refresh_catalog_counts(bucket_config)
+    rebuild_folder_covers(bucket_config)
 
 
 def cache_upsert_folder(bucket_config, folder_key, root_prefix):
@@ -660,6 +773,7 @@ def cache_upsert_folder(bucket_config, folder_key, root_prefix):
         },
     )
     refresh_catalog_counts(bucket_config)
+    rebuild_folder_covers(bucket_config)
 
 
 def cache_delete_keys(bucket_config, keys):
@@ -667,6 +781,7 @@ def cache_delete_keys(bucket_config, keys):
         return
     BibliotecaItem.objects.filter(bucket=bucket_config, key__in=keys).delete()
     refresh_catalog_counts(bucket_config)
+    rebuild_folder_covers(bucket_config)
 
 
 def sync_music_library(bucket_config):
