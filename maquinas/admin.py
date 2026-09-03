@@ -13,66 +13,59 @@ from maquinas.teclas import TECLAS_PADRAO
 def _build_maquina_admin_form():
     """Form com campos virtuais tecla_* — não passar por modelform_factory do admin."""
 
-    field_attrs = {
-        'senha': forms.CharField(
+    class MaquinaAdminForm(forms.ModelForm):
+        senha = forms.CharField(
             label='senha',
             widget=PasswordInput(render_value=False),
             required=False,
             help_text='Preencha para definir ou alterar a senha. Deixe em branco para manter a atual.',
-        ),
-    }
+        )
+
+        class Meta:
+            model = Maquina
+            fields = ('nome_jukebox', 'usuario', 'senha', 'is_active')
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            if not self.instance.pk:
+                self.fields['senha'].required = True
+                self.fields['senha'].help_text = 'Senha de acesso desta jukebox.'
+
+            teclas_map = {t['acao']: t['tecla'] for t in self.instance.get_teclas()}
+            for padrao in TECLAS_PADRAO:
+                field_name = f'tecla_{padrao["acao"]}'
+                self.fields[field_name].initial = teclas_map.get(padrao['acao'], padrao['tecla'])
+
+        def save(self, commit=True):
+            instance = super().save(commit=False)
+            raw_password = self.cleaned_data.get('senha')
+            if raw_password:
+                instance.set_password(raw_password)
+                instance.rotate_token()
+
+            teclas = []
+            for padrao in TECLAS_PADRAO:
+                acao = padrao['acao']
+                tecla = (self.cleaned_data.get(f'tecla_{acao}') or '').strip()
+                teclas.append({
+                    'acao': acao,
+                    'label': padrao['label'],
+                    'tecla': tecla or padrao['tecla'],
+                })
+            instance.teclas = teclas
+
+            if commit:
+                instance.save()
+            return instance
+
     for padrao in TECLAS_PADRAO:
-        field_attrs[f'tecla_{padrao["acao"]}'] = forms.CharField(
+        MaquinaAdminForm.base_fields[f'tecla_{padrao["acao"]}'] = forms.CharField(
             label=padrao['label'],
             max_length=32,
             required=False,
         )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if not self.instance.pk:
-            self.fields['senha'].required = True
-            self.fields['senha'].help_text = 'Senha de acesso desta jukebox.'
-
-        teclas_map = {t['acao']: t['tecla'] for t in self.instance.get_teclas()}
-        for padrao in TECLAS_PADRAO:
-            field_name = f'tecla_{padrao["acao"]}'
-            self.fields[field_name].initial = teclas_map.get(padrao['acao'], padrao['tecla'])
-
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        raw_password = self.cleaned_data.get('senha')
-        if raw_password:
-            instance.set_password(raw_password)
-            instance.rotate_token()
-
-        teclas = []
-        for padrao in TECLAS_PADRAO:
-            acao = padrao['acao']
-            tecla = (self.cleaned_data.get(f'tecla_{acao}') or '').strip()
-            teclas.append({
-                'acao': acao,
-                'label': padrao['label'],
-                'tecla': tecla or padrao['tecla'],
-            })
-        instance.teclas = teclas
-
-        if commit:
-            instance.save()
-        return instance
-
-    field_attrs['__init__'] = __init__
-    field_attrs['save'] = save
-    field_attrs['Meta'] = type(
-        'Meta',
-        (),
-        {
-            'model': Maquina,
-            'fields': ('nome_jukebox', 'usuario', 'senha', 'is_active'),
-        },
-    )
-
-    return type('MaquinaAdminForm', (forms.ModelForm,), field_attrs)
+    return MaquinaAdminForm
 
 
 MaquinaAdminForm = _build_maquina_admin_form()
