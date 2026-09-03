@@ -1,8 +1,12 @@
 from django import forms
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 from django.forms.widgets import PasswordInput
+from django.template.response import TemplateResponse
+from django.urls import path
 
-from maquinas.models import Maquina
+from maquinas.models import Credito, Maquina, MusicaTocada
+from maquinas.services import relatorio_faturamento, relatorio_mais_tocadas
 
 
 class MaquinaAdminForm(forms.ModelForm):
@@ -47,6 +51,7 @@ class MaquinaAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('nome_jukebox', 'usuario')
     readonly_fields = ('api_token', 'last_login_at', 'created_at', 'updated_at')
+    change_list_template = 'admin/maquinas/change_list.html'
 
     fieldsets = (
         ('Jukebox', {
@@ -61,3 +66,59 @@ class MaquinaAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'updated_at'),
         }),
     )
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path(
+                'relatorios/',
+                self.admin_site.admin_view(self.relatorios_view),
+                name='maquinas_maquina_relatorios',
+            ),
+        ]
+        return custom + urls
+
+    def relatorios_view(self, request):
+        if not request.user.is_active or not request.user.is_staff:
+            raise PermissionDenied
+
+        maquina_id = request.GET.get('maquina_id') or None
+        inicio = request.GET.get('inicio') or None
+        fim = request.GET.get('fim') or None
+        faturamento = relatorio_faturamento(maquina_id=maquina_id, inicio=inicio, fim=fim)
+        mais_tocadas = relatorio_mais_tocadas(
+            maquina_id=maquina_id,
+            inicio=inicio,
+            fim=fim,
+            limit=30,
+        )
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'Relatórios das máquinas',
+            'opts': self.model._meta,
+            'maquinas': Maquina.objects.filter(is_active=True),
+            'maquina_id': maquina_id or '',
+            'inicio': inicio or '',
+            'fim': fim or '',
+            'faturamento': faturamento,
+            'mais_tocadas': mais_tocadas,
+        }
+        return TemplateResponse(request, 'admin/maquinas/relatorios.html', context)
+
+
+@admin.register(Credito)
+class CreditoAdmin(admin.ModelAdmin):
+    list_display = ('maquina', 'valor', 'origem', 'created_at')
+    list_filter = ('origem', 'maquina', 'created_at')
+    search_fields = ('maquina__nome_jukebox', 'observacao')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'
+
+
+@admin.register(MusicaTocada)
+class MusicaTocadaAdmin(admin.ModelAdmin):
+    list_display = ('titulo', 'musica_nome', 'maquina', 'pasta', 'created_at')
+    list_filter = ('maquina', 'media_type', 'created_at')
+    search_fields = ('titulo', 'musica_nome', 'musica_key', 'maquina__nome_jukebox')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'

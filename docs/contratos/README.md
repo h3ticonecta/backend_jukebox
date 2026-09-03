@@ -20,6 +20,7 @@
 | 07 | `CRUD` | `/api/v1/musicas/` | [07-musicas-crud.md](./07-musicas-crud.md) | Implementado |
 | 08 | `POST` | `/api/v1/musicas/{id}/upload/` | [08-musicas-upload.md](./08-musicas-upload.md) | Implementado |
 | 09 | `CRUD` | `/api/v1/maquinas/` | [09-maquinas.md](./09-maquinas.md) | Implementado |
+| 10 | `POST/GET` | `/api/v1/maquinas/creditos/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) | Implementado |
 
 ## Endpoints internos (não para frontend)
 

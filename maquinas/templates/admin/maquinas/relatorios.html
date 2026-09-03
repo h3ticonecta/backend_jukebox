@@ -1,0 +1,106 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}Relatórios das máquinas{% endblock %}
+{% block content_title %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .rp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .rp-panel { border: 1px solid var(--hairline-color, #ddd); border-radius: 8px; padding: 16px; }
+  .rp-table { width: 100%; border-collapse: collapse; }
+  .rp-table th, .rp-table td { padding: 8px 10px; border-bottom: 1px solid var(--hairline-color, #ddd); text-align: left; }
+  .rp-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin: 16px 0; }
+  .rp-kpi { font-size: 28px; font-weight: 700; margin: 8px 0; }
+  @media (max-width: 900px) { .rp-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Relatórios das máquinas</h1>
+<p>Faturamento (créditos inseridos) e músicas mais tocadas a partir dos eventos enviados pelas jukebox.</p>
+
+<form method="get" class="rp-filters">
+  <label>Máquina
+    <select name="maquina_id">
+      <option value="">Todas</option>
+      {% for maquina in maquinas %}
+        <option value="{{ maquina.id }}" {% if maquina_id|stringformat:"s" == maquina.id|stringformat:"s" %}selected{% endif %}>{{ maquina.nome_jukebox }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Início
+    <input type="date" name="inicio" value="{{ inicio }}">
+  </label>
+  <label>Fim
+    <input type="date" name="fim" value="{{ fim }}">
+  </label>
+  <input type="submit" value="Filtrar" class="default">
+</form>
+
+<div class="rp-grid">
+  <section class="rp-panel">
+    <h2>Faturamento</h2>
+    <div class="rp-kpi">R$ {{ faturamento.faturamento_total }}</div>
+    <p>{{ faturamento.creditos_quantidade }} crédito(s) · {{ faturamento.tocadas_quantidade }} música(s) tocada(s)</p>
+
+    <h3>Por máquina</h3>
+    <table class="rp-table">
+      <thead><tr><th>Máquina</th><th>Total</th><th>Qtd</th></tr></thead>
+      <tbody>
+        {% for row in faturamento.por_maquina %}
+          <tr>
+            <td>{{ row.nome_jukebox }}</td>
+            <td>R$ {{ row.total }}</td>
+            <td>{{ row.quantidade }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3">Sem créditos no período.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h3>Por dia</h3>
+    <table class="rp-table">
+      <thead><tr><th>Data</th><th>Total</th><th>Qtd</th></tr></thead>
+      <tbody>
+        {% for row in faturamento.por_dia %}
+          <tr>
+            <td>{{ row.data }}</td>
+            <td>R$ {{ row.total }}</td>
+            <td>{{ row.quantidade }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3">Sem movimento diário.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="rp-panel">
+    <h2>Mais tocadas</h2>
+    <p>{{ mais_tocadas.total_tocadas }} reprodução(ões) no período</p>
+    <table class="rp-table">
+      <thead><tr><th></th><th>Música</th><th>Vezes</th></tr></thead>
+      <tbody>
+        {% for row in mais_tocadas.ranking %}
+          <tr>
+            <td>
+              {% if row.cover_url %}
+                <img src="{{ row.cover_url }}" alt="" width="40" height="40" style="object-fit:cover;border-radius:4px;">
+              {% endif %}
+            </td>
+            <td>
+              <strong>{{ row.titulo|default:row.musica_nome }}</strong><br>
+              <small>{{ row.musica_key }}</small>
+            </td>
+            <td>{{ row.plays }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3">Nenhuma música tocada no período.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

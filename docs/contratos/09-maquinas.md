@@ -110,5 +110,6 @@ O front deve guardar `id`, `nome_jukebox` e `token` no dispositivo.
 
 - Token do **admin** (`/api/v1/auth/token/`) gerencia o cadastro
 - Token da **máquina** (`/api/v1/maquinas/auth/`) identifica qual jukebox está logada
+- Eventos de crédito e música tocada: [contrato 10](./10-maquinas-eventos.md)
 - `usuario` é único
 - Não envie a senha em telas de listagem; ela só entra no cadastro e no login

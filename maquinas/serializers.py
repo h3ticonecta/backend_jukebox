@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from maquinas.models import Maquina
+from maquinas.models import Credito, CreditoOrigem, Maquina, MusicaTocada
 
 
 class MaquinaSerializer(serializers.ModelSerializer):
@@ -65,3 +65,73 @@ class MaquinaWriteSerializer(serializers.ModelSerializer):
 class MaquinaAuthSerializer(serializers.Serializer):
     usuario = serializers.CharField()
     senha = serializers.CharField()
+
+
+class CreditoSerializer(serializers.ModelSerializer):
+    maquina_nome = serializers.CharField(source='maquina.nome_jukebox', read_only=True)
+
+    class Meta:
+        model = Credito
+        fields = [
+            'id',
+            'maquina',
+            'maquina_nome',
+            'valor',
+            'origem',
+            'observacao',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'maquina', 'created_at']
+
+
+class CreditoCreateSerializer(serializers.Serializer):
+    valor = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
+    origem = serializers.ChoiceField(choices=CreditoOrigem.choices, required=False, default=CreditoOrigem.MOEDA)
+    observacao = serializers.CharField(required=False, allow_blank=True, default='', max_length=255)
+    maquina_id = serializers.IntegerField(required=False)
+
+
+class MusicaTocadaSerializer(serializers.ModelSerializer):
+    maquina_nome = serializers.CharField(source='maquina.nome_jukebox', read_only=True)
+
+    class Meta:
+        model = MusicaTocada
+        fields = [
+            'id',
+            'maquina',
+            'maquina_nome',
+            'musica_key',
+            'musica_nome',
+            'titulo',
+            'pasta',
+            'media_type',
+            'media_url',
+            'cover_url',
+            'valor',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'maquina', 'created_at']
+
+
+class MusicaTocadaCreateSerializer(serializers.Serializer):
+    musica_key = serializers.CharField(max_length=1024)
+    musica_nome = serializers.CharField(max_length=512, required=False, allow_blank=True, default='')
+    titulo = serializers.CharField(max_length=512, required=False, allow_blank=True, default='')
+    pasta = serializers.CharField(max_length=1024, required=False, allow_blank=True, default='')
+    media_type = serializers.CharField(max_length=16, required=False, default='audio')
+    media_url = serializers.CharField(max_length=2048, required=False, allow_blank=True, default='')
+    cover_url = serializers.CharField(max_length=2048, required=False, allow_blank=True, default='')
+    valor = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        min_value=0,
+    )
+    maquina_id = serializers.IntegerField(required=False)
+
+    def validate_musica_key(self, value):
+        key = value.strip()
+        if not key:
+            raise serializers.ValidationError('Informe a música escolhida (musica_key).')
+        return key
