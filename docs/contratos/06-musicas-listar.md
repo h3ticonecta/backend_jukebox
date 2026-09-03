@@ -90,6 +90,8 @@ GET /api/v1/musicas/?q=love
         "name": "Rock",
         "path": "Musicas/Rock/",
         "cover_url": "https://pub-xxxxx.r2.dev/Musicas/Rock/cover.jpg",
+        "subfolders_count": 0,
+        "files_count": 18,
         "children": []
       }
     ]
@@ -103,7 +105,9 @@ GET /api/v1/musicas/?q=love
         "name": "folder.jpg",
         "key": "Musicas/Pop/folder.jpg",
         "media_url": "https://pub-xxxxx.r2.dev/Musicas/Pop/folder.jpg"
-      }
+      },
+      "subfolders_count": 2,
+      "files_count": 34
     }
   ],
   "files": [
@@ -158,7 +162,7 @@ GET /api/v1/musicas/?q=love
 |---|---|
 | `tree` | Árvore lateral (sidebar); `cover_url` opcional |
 | `breadcrumbs` | Barra de navegação |
-| `folders` | Ícones/capas de pasta na área principal |
+| `folders` | Ícones/capas de pasta na área principal; `subfolders_count` = subpastas diretas, `files_count` = músicas na pasta (recursivo) |
 | `files` | Lista da pasta atual: áudio, vídeo e imagens (`media_type`) |
 | `musicas` | Somente áudio/vídeo da pasta atual (para o player) |
 | `images` | Fotos jpg/png da pasta atual |

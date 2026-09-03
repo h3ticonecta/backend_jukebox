@@ -242,9 +242,10 @@ def extract_folder_paths(keys, root_prefix):
     return sorted(folders, key=str.lower)
 
 
-def build_folder_tree(root_prefix, folder_paths, covers_by_folder=None):
+def build_folder_tree(root_prefix, folder_paths, covers_by_folder=None, folder_counts=None):
     root = normalize_prefix(root_prefix)
     covers_by_folder = covers_by_folder or {}
+    folder_counts = folder_counts or {}
     tree_map = {}
 
     for folder_path in folder_paths:
@@ -267,10 +268,13 @@ def build_folder_tree(root_prefix, folder_paths, covers_by_folder=None):
         children = []
         for name in sorted(nodes.keys(), key=str.lower):
             node = nodes[name]
+            counts = folder_counts.get(node['path'], {})
             children.append({
                 'name': node['name'],
                 'path': node['path'],
                 'cover_url': covers_by_folder.get(node['path']),
+                'subfolders_count': counts.get('subfolders', 0),
+                'files_count': counts.get('files', 0),
                 'children': map_to_list(node['children_map']),
             })
         return children
@@ -384,7 +388,6 @@ def assemble_browse(
         item['cover_url'] = cover_url
         item['cover'] = cover_data
 
-    tree = build_folder_tree(root_prefix, folder_paths, cover_urls)
     current_files = [item for item in listed_files if item['folder_path'] == current_prefix]
     if search and search.strip():
         current_files = listed_files
@@ -397,12 +400,33 @@ def assemble_browse(
         and folder_path != current_prefix
         and folder_path[len(current_prefix):].strip('/').count('/') == 0
     ]
+
+    folder_counts = {}
+    for folder_path in folder_paths:
+        direct_subfolders = [
+            other for other in folder_paths
+            if other != folder_path
+            and other.startswith(folder_path)
+            and other[len(folder_path):].strip('/').count('/') == 0
+        ]
+        files_in_folder = sum(
+            1 for item in playable
+            if item['folder_path'] == folder_path
+            or item['folder_path'].startswith(folder_path)
+        )
+        folder_counts[folder_path] = {
+            'subfolders': len(direct_subfolders),
+            'files': files_in_folder,
+        }
+
     current_folders = [
         {
             'name': folder_name_from_prefix(folder_path),
             'path': folder_path,
             'cover_url': cover_urls.get(folder_path),
             'cover': cover_payload(covers.get(folder_path))[1],
+            'subfolders_count': folder_counts.get(folder_path, {}).get('subfolders', 0),
+            'files_count': folder_counts.get(folder_path, {}).get('files', 0),
         }
         for folder_path in current_folder_paths
     ]
@@ -427,7 +451,7 @@ def assemble_browse(
         'cover': current_cover,
         'search': search or '',
         'breadcrumbs': build_breadcrumbs(current_prefix, root_prefix),
-        'tree': tree,
+        'tree': build_folder_tree(root_prefix, folder_paths, cover_urls, folder_counts),
         'folders': current_folders,
         'files': current_files,
         'images': current_images,
