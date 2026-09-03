@@ -9,6 +9,11 @@ from maquinas.models import Credito, Maquina, MusicaTocada
 from maquinas.services import relatorio_faturamento, relatorio_mais_tocadas
 
 
+from maquinas.models import Credito, Maquina, MusicaTocada
+from maquinas.services import relatorio_faturamento, relatorio_mais_tocadas
+from maquinas.teclas import TECLAS_PADRAO
+
+
 class MaquinaAdminForm(forms.ModelForm):
     senha = forms.CharField(
         label='senha',
@@ -27,12 +32,34 @@ class MaquinaAdminForm(forms.ModelForm):
             self.fields['senha'].required = True
             self.fields['senha'].help_text = 'Senha de acesso desta jukebox.'
 
+        teclas_map = {t['acao']: t['tecla'] for t in self.instance.get_teclas()}
+        for padrao in TECLAS_PADRAO:
+            acao = padrao['acao']
+            self.fields[f'tecla_{acao}'] = forms.CharField(
+                label=padrao['label'],
+                max_length=32,
+                initial=teclas_map.get(acao, padrao['tecla']),
+                required=False,
+            )
+
     def save(self, commit=True):
         instance = super().save(commit=False)
         raw_password = self.cleaned_data.get('senha')
         if raw_password:
             instance.set_password(raw_password)
             instance.rotate_token()
+
+        teclas = []
+        for padrao in TECLAS_PADRAO:
+            acao = padrao['acao']
+            tecla = (self.cleaned_data.get(f'tecla_{acao}') or '').strip()
+            teclas.append({
+                'acao': acao,
+                'label': padrao['label'],
+                'tecla': tecla or padrao['tecla'],
+            })
+        instance.teclas = teclas
+
         if commit:
             instance.save()
         return instance
@@ -57,6 +84,10 @@ class MaquinaAdmin(admin.ModelAdmin):
         ('Jukebox', {
             'fields': ('nome_jukebox', 'usuario', 'senha', 'is_active'),
             'description': 'Cadastre cada máquina física. Usuário e senha são usados na vinculação do app.',
+        }),
+        ('Teclas', {
+            'fields': tuple(f'tecla_{t["acao"]}' for t in TECLAS_PADRAO),
+            'description': 'Atalhos exibidos no app da jukebox. O front usa estas teclas; crédito pode ser inserido pela tecla ou pela API.',
         }),
         ('Vinculação', {
             'fields': ('api_token', 'last_login_at'),

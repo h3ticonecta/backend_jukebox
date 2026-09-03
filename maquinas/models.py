@@ -3,6 +3,8 @@ import secrets
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 
+from maquinas.teclas import default_teclas, normalizar_teclas
+
 
 class Maquina(models.Model):
     nome_jukebox = models.CharField('nome da jukebox', max_length=150)
@@ -10,6 +12,12 @@ class Maquina(models.Model):
     senha = models.CharField('senha', max_length=128)
     api_token = models.CharField('token da máquina', max_length=64, unique=True, blank=True)
     is_active = models.BooleanField('ativo', default=True)
+    teclas = models.JSONField(
+        'atalhos de teclado',
+        default=default_teclas,
+        blank=True,
+        help_text='Mapa de teclas da jukebox (configurado no admin, enviado ao app).',
+    )
     last_login_at = models.DateTimeField('último acesso', null=True, blank=True)
     created_at = models.DateTimeField('criado em', auto_now_add=True)
     updated_at = models.DateTimeField('atualizado em', auto_now=True)
@@ -30,6 +38,9 @@ class Maquina(models.Model):
 
     def rotate_token(self):
         self.api_token = secrets.token_hex(20)
+
+    def get_teclas(self):
+        return normalizar_teclas(self.teclas)
 
     def save(self, *args, **kwargs):
         if not self.api_token:

@@ -75,6 +75,25 @@ class MaquinaViewSet(viewsets.ModelViewSet):
             'nome_jukebox': maquina.nome_jukebox,
             'usuario': maquina.usuario,
             'token': maquina.api_token,
+            'teclas': maquina.get_teclas(),
+        })
+
+    @action(detail=False, methods=['get'], url_path='config', permission_classes=[AllowAny])
+    def config(self, request):
+        """GET /api/v1/maquinas/config/ — teclas e dados da máquina autenticada."""
+        try:
+            maquina = resolve_maquina(request)
+        except AuthenticationFailed as exc:
+            return Response(
+                {'error': {'code': 'UNAUTHORIZED', 'message': str(exc)}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        return Response({
+            'id': maquina.id,
+            'nome_jukebox': maquina.nome_jukebox,
+            'usuario': maquina.usuario,
+            'teclas': maquina.get_teclas(),
         })
 
     @action(detail=False, methods=['post'], url_path='creditos', permission_classes=[AllowAny])

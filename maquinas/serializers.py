@@ -1,9 +1,18 @@
 from rest_framework import serializers
 
 from maquinas.models import Credito, CreditoOrigem, Maquina, MusicaTocada
+from maquinas.teclas import ACOES_VALIDAS, normalizar_teclas
+
+
+class TeclaSerializer(serializers.Serializer):
+    acao = serializers.CharField()
+    label = serializers.CharField()
+    tecla = serializers.CharField(max_length=32)
 
 
 class MaquinaSerializer(serializers.ModelSerializer):
+    teclas = serializers.SerializerMethodField()
+
     class Meta:
         model = Maquina
         fields = [
@@ -11,15 +20,24 @@ class MaquinaSerializer(serializers.ModelSerializer):
             'nome_jukebox',
             'usuario',
             'is_active',
+            'teclas',
             'last_login_at',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'last_login_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'last_login_at', 'created_at', 'updated_at', 'teclas']
+
+    def get_teclas(self, obj):
+        return obj.get_teclas()
 
 
 class MaquinaWriteSerializer(serializers.ModelSerializer):
     senha = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=4)
+    teclas = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        help_text='Lista de atalhos: [{ "acao": "cima", "tecla": "Q" }, ...]',
+    )
 
     class Meta:
         model = Maquina
@@ -28,6 +46,7 @@ class MaquinaWriteSerializer(serializers.ModelSerializer):
             'usuario',
             'senha',
             'is_active',
+            'teclas',
         ]
 
     def validate_usuario(self, value):
@@ -41,11 +60,30 @@ class MaquinaWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Já existe uma máquina com este usuário.')
         return usuario
 
+    def validate_teclas(self, value):
+        if value is None:
+            return value
+        acoes = []
+        for item in value:
+            acao = (item.get('acao') or '').strip()
+            if not acao:
+                raise serializers.ValidationError('Cada atalho precisa de "acao".')
+            if acao not in ACOES_VALIDAS:
+                raise serializers.ValidationError(f'Ação inválida: {acao}')
+            tecla = str(item.get('tecla', '')).strip()
+            if not tecla:
+                raise serializers.ValidationError(f'Tecla obrigatória para "{acao}".')
+            acoes.append({'acao': acao, 'tecla': tecla})
+        return normalizar_teclas(acoes)
+
     def create(self, validated_data):
         senha = validated_data.pop('senha', None)
+        teclas = validated_data.pop('teclas', None)
         if not senha:
             raise serializers.ValidationError({'senha': 'Campo obrigatório na criação.'})
         maquina = Maquina(**validated_data)
+        if teclas is not None:
+            maquina.teclas = teclas
         maquina.set_password(senha)
         maquina.rotate_token()
         maquina.save()
@@ -53,8 +91,11 @@ class MaquinaWriteSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         senha = validated_data.pop('senha', None)
+        teclas = validated_data.pop('teclas', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+        if teclas is not None:
+            instance.teclas = teclas
         if senha:
             instance.set_password(senha)
             instance.rotate_token()
