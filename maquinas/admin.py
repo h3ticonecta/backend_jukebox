@@ -10,17 +10,23 @@ from maquinas.services import relatorio_faturamento, relatorio_mais_tocadas
 from maquinas.teclas import TECLAS_PADRAO
 
 
-class MaquinaAdminForm(forms.ModelForm):
-    senha = forms.CharField(
-        label='senha',
-        widget=PasswordInput(render_value=False),
-        required=False,
-        help_text='Preencha para definir ou alterar a senha. Deixe em branco para manter a atual.',
-    )
+def _build_maquina_admin_form():
+    """Form com campos virtuais tecla_* — não passar por modelform_factory do admin."""
 
-    class Meta:
-        model = Maquina
-        fields = ('nome_jukebox', 'usuario', 'senha', 'is_active')
+    field_attrs = {
+        'senha': forms.CharField(
+            label='senha',
+            widget=PasswordInput(render_value=False),
+            required=False,
+            help_text='Preencha para definir ou alterar a senha. Deixe em branco para manter a atual.',
+        ),
+    }
+    for padrao in TECLAS_PADRAO:
+        field_attrs[f'tecla_{padrao["acao"]}'] = forms.CharField(
+            label=padrao['label'],
+            max_length=32,
+            required=False,
+        )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -55,14 +61,21 @@ class MaquinaAdminForm(forms.ModelForm):
             instance.save()
         return instance
 
-
-for _padrao in TECLAS_PADRAO:
-    MaquinaAdminForm.base_fields[f'tecla_{_padrao["acao"]}'] = forms.CharField(
-        label=_padrao['label'],
-        max_length=32,
-        required=False,
-        initial=_padrao['tecla'],
+    field_attrs['__init__'] = __init__
+    field_attrs['save'] = save
+    field_attrs['Meta'] = type(
+        'Meta',
+        (),
+        {
+            'model': Maquina,
+            'fields': ('nome_jukebox', 'usuario', 'senha', 'is_active'),
+        },
     )
+
+    return type('MaquinaAdminForm', (forms.ModelForm,), field_attrs)
+
+
+MaquinaAdminForm = _build_maquina_admin_form()
 
 
 @admin.register(Maquina)
@@ -97,6 +110,10 @@ class MaquinaAdmin(admin.ModelAdmin):
             'fields': ('created_at', 'updated_at'),
         }),
     )
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        """Evita modelform_factory, que não suporta campos virtuais tecla_*."""
+        return self.form
 
     def get_urls(self):
         urls = super().get_urls()
