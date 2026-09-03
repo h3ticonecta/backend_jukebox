@@ -7,10 +7,6 @@ from django.urls import path
 
 from maquinas.models import Credito, Maquina, MusicaTocada
 from maquinas.services import relatorio_faturamento, relatorio_mais_tocadas
-
-
-from maquinas.models import Credito, Maquina, MusicaTocada
-from maquinas.services import relatorio_faturamento, relatorio_mais_tocadas
 from maquinas.teclas import TECLAS_PADRAO
 
 
@@ -34,13 +30,8 @@ class MaquinaAdminForm(forms.ModelForm):
 
         teclas_map = {t['acao']: t['tecla'] for t in self.instance.get_teclas()}
         for padrao in TECLAS_PADRAO:
-            acao = padrao['acao']
-            self.fields[f'tecla_{acao}'] = forms.CharField(
-                label=padrao['label'],
-                max_length=32,
-                initial=teclas_map.get(acao, padrao['tecla']),
-                required=False,
-            )
+            field_name = f'tecla_{padrao["acao"]}'
+            self.fields[field_name].initial = teclas_map.get(padrao['acao'], padrao['tecla'])
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -63,6 +54,15 @@ class MaquinaAdminForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+for _padrao in TECLAS_PADRAO:
+    MaquinaAdminForm.base_fields[f'tecla_{_padrao["acao"]}'] = forms.CharField(
+        label=_padrao['label'],
+        max_length=32,
+        required=False,
+        initial=_padrao['tecla'],
+    )
 
 
 @admin.register(Maquina)
