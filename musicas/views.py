@@ -1,8 +1,11 @@
 from rest_framework import status, viewsets
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from maquinas.auth import MaquinaAuthentication
 
 from buckets.exceptions import BucketServiceError
 from musicas.serializers import (
@@ -33,6 +36,12 @@ class MusicaFileManagerViewSet(viewsets.ViewSet):
     """File manager de músicas no R2 — navegação, upload, mover e excluir."""
 
     permission_classes = [IsAuthenticated]
+    authentication_classes = [SessionAuthentication, TokenAuthentication]
+
+    def get_authentication_classes(self):
+        if self.action in ('list', 'browse'):
+            return [TokenAuthentication, MaquinaAuthentication, SessionAuthentication]
+        return [SessionAuthentication, TokenAuthentication]
 
     def list(self, request):
         """GET /api/v1/musicas/ — navega o catálogo em cache no PostgreSQL."""

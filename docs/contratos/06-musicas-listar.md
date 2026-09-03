@@ -23,7 +23,12 @@ Antes do primeiro `POST /sync/`, `needs_sync` vem `true` e as listas ficam vazia
 
 ## Autenticação
 
-Obrigatória — `Authorization: Token <token>`
+| Endpoint | Auth aceita |
+|---|---|
+| `GET /musicas/` e `GET /musicas/browse/` | Token **admin** (`Authorization: Token <token>`) **ou** token da jukebox (`Authorization: Maquina <token>`) |
+| `POST` (sync, upload, move, delete, folders) | Somente token **admin** |
+
+O token da máquina vem de `POST /api/v1/maquinas/auth/` após login com usuário/senha da jukebox.
 
 ## Endpoints
 
@@ -239,12 +244,20 @@ POST /api/v1/musicas/folders/
 ## Fluxo do frontend (file manager)
 
 ```
-1. POST /musicas/sync/              → uma vez (ou quando o R2 mudar por fora)
+1. POST /musicas/sync/              → uma vez (ou quando o R2 mudar por fora) — admin
 2. GET /musicas/                    → monta tree + lista a partir do PostgreSQL
 3. Clicar pasta "Rock"              → GET /musicas/?prefix=Musicas/Rock/
 4. Busca                            → GET /musicas/?q=love
-5. Upload / excluir / criar pasta   → atualiza R2 e o cache
+5. Upload / excluir / criar pasta   → atualiza R2 e o cache — admin
 6. Tocar arquivo                    → usar file.media_url no player
+```
+
+## Fluxo do app jukebox (só listar)
+
+```
+1. POST /maquinas/auth/             → guarda token
+2. GET /musicas/?prefix=Musicas/    → Authorization: Maquina <token>
+3. Player                           → item.media_url
 ```
 
 ## Notas

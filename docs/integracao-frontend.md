@@ -19,7 +19,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 | [Auth Token](./contratos/03-auth-token.md) | `POST /api/v1/auth/token/` | Obter token de autenticação |
 | [Buckets CRUD](./contratos/04-buckets-crud.md) | `/api/v1/buckets/` | Cadastrar conexões S3/R2 |
 | [Bucket Objects](./contratos/05-bucket-objects.md) | `/api/v1/buckets/{id}/objects/` | Gerenciar arquivos no bucket |
-| [Músicas File Manager](./contratos/06-musicas-listar.md) | `GET /api/v1/musicas/` | Navegar, upload, mover e excluir no R2 |
+| [Músicas File Manager](./contratos/06-musicas-listar.md) | `GET /api/v1/musicas/` | Navegar biblioteca (admin ou token da máquina); upload/move/delete só admin |
 | [Máquinas](./contratos/09-maquinas.md) | `/api/v1/maquinas/` | Cadastrar jukebox e vincular com usuário/senha |
 | [Eventos e relatórios](./contratos/10-maquinas-eventos.md) | `/api/v1/maquinas/creditos/` | Créditos, músicas tocadas, faturamento e ranking |
 
