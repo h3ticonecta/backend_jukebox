@@ -185,3 +185,10 @@ class S3BucketService:
             }
         except Exception as exc:
             raise handle_boto_error(exc) from exc
+
+    def get_object_bytes(self, key, max_bytes=25 * 1024 * 1024):
+        try:
+            response = self.client.get_object(Bucket=self.bucket_name, Key=key)
+            return response['Body'].read(max_bytes)
+        except Exception as exc:
+            raise handle_boto_error(exc) from exc

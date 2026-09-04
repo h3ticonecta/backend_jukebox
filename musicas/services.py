@@ -8,6 +8,7 @@ from django.utils import timezone
 from buckets.exceptions import BucketServiceError
 from buckets.models import BucketConfig
 from buckets.services import S3BucketService
+from musicas.duration import extract_duration_from_bytes, extract_duration_seconds
 from musicas.models import (
     ALLOWED_LIBRARY_EXTENSIONS,
     ALLOWED_MEDIA_EXTENSIONS,
@@ -272,7 +273,7 @@ def cover_payload(cover):
     return cover.get('media_url'), payload
 
 
-def build_media_item(item):
+def build_media_item(item, duration_seconds=None):
     key = item['key']
     filename = os.path.basename(key)
     title, extension = os.path.splitext(filename)
@@ -292,7 +293,33 @@ def build_media_item(item):
         'cover_url': public_url if media_type == 'image' else None,
         'size': item['size'],
         'last_modified': item['last_modified'],
+        'duration_seconds': duration_seconds,
     }
+
+
+def fetch_duration_from_s3(service, key, size=0):
+    if get_media_type(os.path.splitext(key)[1].lower()) not in {'audio', 'video'}:
+        return None
+    try:
+        data = service.get_object_bytes(key)
+        return extract_duration_from_bytes(data, key)
+    except Exception:
+        return None
+
+
+def enrich_items_with_duration(service, items):
+    for item in items:
+        if item.get('media_type') not in {'audio', 'video'}:
+            item['duration_seconds'] = None
+            continue
+        if item.get('duration_seconds') is not None:
+            continue
+        item['duration_seconds'] = fetch_duration_from_s3(
+            service,
+            item['key'],
+            item.get('size') or 0,
+        )
+    return items
 
 
 def build_breadcrumbs(current_prefix, root_prefix):
@@ -437,6 +464,7 @@ def item_from_model(row):
         'cover_url': public_url if row.media_type == 'image' else None,
         'size': row.size,
         'last_modified': row.last_modified,
+        'duration_seconds': row.duration_seconds,
     }
 
 
@@ -645,6 +673,7 @@ def collect_library_from_r2(bucket_config):
         for item in all_objects
         if is_library_key(item['key']) and not item['key'].endswith('/')
     ]
+    enrich_items_with_duration(service, all_items)
     return {
         'root_prefix': root_prefix,
         'folder_paths': sorted(folder_paths, key=str.lower),
@@ -693,6 +722,7 @@ def replace_catalog(bucket_config, snapshot):
             size=item.get('size') or 0,
             last_modified=str(item.get('last_modified') or '')[:64],
             media_url=(item.get('media_url') or '')[:2048],
+            duration_seconds=item.get('duration_seconds'),
         ))
 
     with transaction.atomic():
@@ -745,6 +775,7 @@ def cache_upsert_file(bucket_config, item):
             'size': item.get('size') or 0,
             'last_modified': str(item.get('last_modified') or '')[:64],
             'media_url': (item.get('media_url') or '')[:2048],
+            'duration_seconds': item.get('duration_seconds'),
         },
     )
     refresh_catalog_counts(bucket_config)
@@ -830,6 +861,10 @@ def upload_file_to_folder(bucket_config, prefix, uploaded_file):
     key = f'{current_prefix}{safe_name}'
     validate_key_in_root(key, root_prefix)
 
+    uploaded_file.file.seek(0)
+    duration_seconds = extract_duration_seconds(uploaded_file.file, safe_name)
+    uploaded_file.file.seek(0)
+
     service = S3BucketService(bucket_config)
     service.upload_object(
         key=key,
@@ -849,6 +884,7 @@ def upload_file_to_folder(bucket_config, prefix, uploaded_file):
         'size': getattr(uploaded_file, 'size', 0) or 0,
         'last_modified': timezone.now().isoformat(),
         'media_url': media_url or '',
+        'duration_seconds': duration_seconds,
     })
 
     return {
@@ -883,6 +919,7 @@ def move_file(bucket_config, source_key, destination_key):
             'size': source.size if source else 0,
             'last_modified': timezone.now().isoformat(),
             'media_url': bucket_config.get_public_url(destination_key) or '',
+            'duration_seconds': source.duration_seconds if source else None,
         })
     return result
 

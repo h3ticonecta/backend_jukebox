@@ -127,6 +127,7 @@ GET /api/v1/musicas/?q=love
         "media_url": "https://pub-xxxxx.r2.dev/Musicas/Rock/cover.jpg"
       },
       "size": 5242880,
+      "duration_seconds": 261,
       "last_modified": "2026-09-01T18:00:00+00:00"
     }
   ],
@@ -164,7 +165,7 @@ GET /api/v1/musicas/?q=love
 | `breadcrumbs` | Barra de navegação |
 | `folders` | Ícones/capas de pasta na área principal; `subfolders_count` = subpastas diretas, `files_count` = músicas na pasta (recursivo) |
 | `files` | Lista da pasta atual: áudio, vídeo e imagens (`media_type`) |
-| `musicas` | Somente áudio/vídeo da pasta atual (para o player) |
+| `musicas` | Somente áudio/vídeo da pasta atual (para o player); `duration_seconds` para barra de progresso |
 | `images` | Fotos jpg/png da pasta atual |
 | `files_list` | Busca global de faixas em todas as pastas |
 | `images_list` | Todas as capas/fotos |
@@ -261,7 +262,7 @@ POST /api/v1/musicas/folders/
 ```
 1. POST /maquinas/auth/             → guarda token
 2. GET /musicas/?prefix=Musicas/    → Authorization: Maquina <token>
-3. Player                           → item.media_url
+3. Player                           → item.media_url + item.duration_seconds (formatar ex.: 261 → "4:21")
 ```
 
 ## Notas
@@ -271,4 +272,4 @@ POST /api/v1/musicas/folders/
 - `cover_url` das pastas é **pré-calculado no sync** (capa própria ou herdada do primeiro subfolder com capa)
 - Upload, exclusão, mover e criar pasta já atualizam o cache
 - Campos `musicas` e `musicas_list` são somente áudio/vídeo, para o player
-- `files` e `files_list` incluem também jpg/png (`media_type: image`)
+- `duration_seconds` em áudio/vídeo: inteiro em segundos (`null` se não extraído); calculado no sync/upload via metadados do arquivo
