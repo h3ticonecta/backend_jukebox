@@ -14,7 +14,7 @@ Este repositório contém o **backend** do projeto Jukebox, construído com **Dj
 | [Ambientes](./ambientes.md) | URLs base, variáveis e deploy |
 | [Convenções](./convencoes.md) | Padrões de request/response, erros e versionamento |
 | [Integração Frontend](./integracao-frontend.md) | Orientações para o time de frontend |
-| [Contratos de API](./contratos/README.md) | Endpoints implementados |
+| [Contratos de API](./contratos/README.md) | Endpoints implementados (fonte única para o frontend) |
 | [Roadmap](./roadmap.md) | Funcionalidades planejadas (ainda não implementadas) |
 
 ## Status atual

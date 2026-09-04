@@ -22,6 +22,17 @@
 | 09 | `CRUD` | `/api/v1/maquinas/` | [09-maquinas.md](./09-maquinas.md) | Implementado |
 | 10 | `POST/GET` | `/api/v1/maquinas/creditos/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) | Implementado |
 
+> Contratos 07 e 08 (CRUD/upload legado) foram substituídos pelo **06** (file manager).
+
+## Auth da jukebox (`Maquina`)
+
+| Método | Endpoint | Contrato |
+|---|---|---|
+| `POST` | `/api/v1/maquinas/auth/` | [09-maquinas.md](./09-maquinas.md) |
+| `GET` | `/api/v1/musicas/` | [06-musicas-listar.md](./06-musicas-listar.md) — header `Authorization: Maquina <token>` |
+| `POST` | `/api/v1/maquinas/creditos/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) |
+| `POST` | `/api/v1/maquinas/tocadas/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) |
+
 ## Endpoints internos (não para frontend)
 
 | Método | Endpoint | Descrição |
