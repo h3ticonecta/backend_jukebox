@@ -25,7 +25,7 @@ Antes do primeiro `POST /sync/`, `needs_sync` vem `true` e as listas ficam vazia
 
 | Endpoint | Auth aceita |
 |---|---|
-| `GET /musicas/` e `GET /musicas/browse/` | Token **admin** (`Authorization: Token <token>`) **ou** token da jukebox (`Authorization: Maquina <token>`) |
+| `GET /musicas/` e `GET /musicas/browse/` | Token **admin** (`Authorization: Token <token>`) **ou** token da jukebox (`Authorization: Maquina <token>`). Com token **admin**, a resposta é o file manager (conteúdo real da pasta). Com token **Maquina**, `musicas` pode incluir faixas de subpastas (consulta da jukebox). |
 | `POST` (sync, upload, move, delete, folders) | Somente token **admin** |
 
 O token da máquina vem de `POST /api/v1/maquinas/auth/` após login com usuário/senha da jukebox.
@@ -147,6 +147,7 @@ GET /api/v1/musicas/?q=love
   ],
   "files_list": [],
   "images_list": [],
+  "musicas_includes_nested": false,
   "totals": {
     "folders": 5,
     "files": 120,
@@ -164,14 +165,29 @@ GET /api/v1/musicas/?q=love
 | `tree` | Árvore lateral (sidebar); `cover_url` opcional |
 | `breadcrumbs` | Barra de navegação |
 | `folders` | Ícones/capas de pasta na área principal; `subfolders_count` = subpastas diretas, `files_count` = músicas na pasta (recursivo) |
-| `files` | Lista da pasta atual: áudio, vídeo e imagens (`media_type`) |
-| `musicas` | Somente áudio/vídeo da pasta atual (para o player); `duration_seconds` para barra de progresso |
+| `files` | Lista da pasta atual: áudio, vídeo e imagens (`media_type`) — só arquivos **diretos** |
+| `musicas` | Áudio/vídeo para o player. No **file manager** (admin) só a pasta atual. Na **jukebox** (`Authorization: Maquina`) a partir do 2º nível inclui faixas de subpastas |
+| `musicas_includes_nested` | `true` só na consulta da jukebox quando `musicas` já veio achatado |
 | `images` | Fotos jpg/png da pasta atual |
 | `files_list` | Busca global de faixas em todas as pastas |
 | `images_list` | Todas as capas/fotos |
 | `cover_url` | Capa da pasta atual |
 | `cached` / `needs_sync` | Se o catálogo PostgreSQL já foi sincronizado |
 | `last_synced_at` | Data da última leitura do R2 |
+
+### `musicas` por tipo de cliente
+
+O **file manager** (Admin e `Authorization: Token`) lista só o conteúdo **real** da pasta: `folders`, `files`, `images` e `musicas` no nível atual.
+
+A **jukebox** (`Authorization: Maquina <token>`) usa o mesmo endpoint, mas `musicas` muda a partir do 2º nível:
+
+| Auth | `prefix` | `musicas_includes_nested` | O que vem em `musicas` |
+|---|---|---|---|
+| Token / Admin | qualquer | `false` | Só faixas **diretas** da pasta (file manager) |
+| Maquina | `Musicas/` ou `Musicas/JAZZ/` | `false` | Só faixas **diretas**; artistas continuam em `folders` |
+| Maquina | `Musicas/JAZZ/Amy Winehouse/` | `true` | Faixas da pasta **e** das subpastas (álbuns/CDs) |
+
+Cada item continua com `folder_path` da pasta real (o álbum). Use `item.media_url` no player.
 
 ---
 
@@ -272,4 +288,6 @@ POST /api/v1/musicas/folders/
 - `cover_url` das pastas é **pré-calculado no sync** (capa própria ou herdada do primeiro subfolder com capa)
 - Upload, exclusão, mover e criar pasta já atualizam o cache
 - Campos `musicas` e `musicas_list` são somente áudio/vídeo, para o player
+- File manager (Admin / token admin): `files`, `folders`, `images` e `musicas` mostram só o nível atual
+- Jukebox (`Authorization: Maquina`): a partir do 2º nível abaixo da raiz, `musicas` inclui faixas de subpastas. `folder_path` de cada item continua sendo a pasta real do arquivo
 - `duration_seconds` em áudio/vídeo: inteiro em segundos (`null` se não extraído); calculado no sync/upload via metadados do arquivo

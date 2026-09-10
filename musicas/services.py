@@ -102,6 +102,22 @@ def get_parent_path(current_prefix, root_prefix):
     return parent
 
 
+def folder_depth(prefix, root_prefix):
+    current = normalize_prefix(prefix)
+    root = normalize_prefix(root_prefix)
+    if not current.startswith(root):
+        return 0
+    relative = current[len(root):].strip('/')
+    if not relative:
+        return 0
+    return len(relative.split('/'))
+
+
+def include_nested_musicas(prefix, root_prefix):
+    """Gênero (Musicas/JAZZ/) lista só a pasta atual; artista em diante inclui subpastas."""
+    return folder_depth(prefix, root_prefix) >= 2
+
+
 def resolve_browse_prefix(requested_prefix, root_prefix, bucket_name=None):
     root = normalize_prefix(root_prefix)
 
@@ -477,6 +493,7 @@ def assemble_browse(
     catalog=None,
     search=None,
     folder_covers_db=None,
+    include_nested_tracks=False,
 ):
     folder_paths = sorted({normalize_prefix(path) for path in folder_paths if path}, key=str.lower)
     all_items = sorted(all_items, key=lambda item: item['name'].lower())
@@ -525,7 +542,20 @@ def assemble_browse(
     current_files = [item for item in listed_files if item['folder_path'] == current_prefix]
     if search and search.strip():
         current_files = listed_files
-    current_playable = [item for item in current_files if item['media_type'] in {'audio', 'video'}]
+    flatten_musicas = (
+        include_nested_tracks
+        and include_nested_musicas(current_prefix, root_prefix)
+    )
+    if search and search.strip():
+        current_playable = [item for item in current_files if item['media_type'] in {'audio', 'video'}]
+    elif flatten_musicas:
+        current_playable = [
+            item for item in playable
+            if item['folder_path'] == current_prefix
+            or item['folder_path'].startswith(current_prefix)
+        ]
+    else:
+        current_playable = [item for item in current_files if item['media_type'] in {'audio', 'video'}]
     current_images = [item for item in all_images if item['folder_path'] == current_prefix]
     current_cover_url, current_cover = cover_payload(covers.get(current_prefix))
     current_folder_paths = [
@@ -592,6 +622,7 @@ def assemble_browse(
         'files_list': listed_files,
         'images_list': all_images,
         'musicas': current_playable,
+        'musicas_includes_nested': flatten_musicas,
         'musicas_list': playable,
         'totals': {
             'folders': len(folder_paths),
@@ -601,6 +632,7 @@ def assemble_browse(
             'current_files': len([
                 item for item in playable if item['folder_path'] == current_prefix
             ]),
+            'current_musicas': len(current_playable),
             'current_images': len(current_images),
             'audio': sum(1 for item in playable if item['media_type'] == 'audio'),
             'video': sum(1 for item in playable if item['media_type'] == 'video'),
@@ -608,7 +640,7 @@ def assemble_browse(
     }
 
 
-def browse_music_library(bucket_config, prefix=None, search=None):
+def browse_music_library(bucket_config, prefix=None, search=None, include_nested_tracks=False):
     catalog = get_catalog(bucket_config)
     root_prefix = effective_root_prefix(bucket_config, probe_r2=False)
     current_prefix = resolve_browse_prefix(
@@ -626,6 +658,7 @@ def browse_music_library(bucket_config, prefix=None, search=None):
             all_items=[],
             catalog=catalog,
             search=search,
+            include_nested_tracks=include_nested_tracks,
         )
 
     folder_paths = list(
@@ -649,6 +682,7 @@ def browse_music_library(bucket_config, prefix=None, search=None):
         catalog=catalog,
         search=search,
         folder_covers_db=folder_covers_db,
+        include_nested_tracks=include_nested_tracks,
     )
 
 

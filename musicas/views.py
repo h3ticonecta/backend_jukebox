@@ -5,7 +5,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from maquinas.auth import MaquinaAuthentication
+from maquinas.auth import MaquinaAuthentication, MaquinaAuthUser
 
 from buckets.exceptions import BucketServiceError
 from musicas.serializers import (
@@ -65,7 +65,15 @@ class MusicaFileManagerViewSet(viewsets.ViewSet):
 
         try:
             bucket = get_music_bucket(int(bucket_id) if bucket_id else None)
-            return Response(browse_music_library(bucket, prefix=prefix, search=search))
+            is_jukebox = isinstance(getattr(request, 'user', None), MaquinaAuthUser)
+            return Response(
+                browse_music_library(
+                    bucket,
+                    prefix=prefix,
+                    search=search,
+                    include_nested_tracks=is_jukebox,
+                )
+            )
         except BucketServiceError as exc:
             return error_response(exc)
 
