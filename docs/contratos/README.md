@@ -32,6 +32,7 @@
 | `GET` | `/api/v1/musicas/` | [06-musicas-listar.md](./06-musicas-listar.md) — header `Authorization: Maquina <token>` |
 | `POST` | `/api/v1/maquinas/creditos/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) |
 | `POST` | `/api/v1/maquinas/tocadas/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) |
+| `GET` | `/api/v1/maquinas/leitura/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) — leitura de faturamento |
 
 ## Endpoints internos (não para frontend)
 

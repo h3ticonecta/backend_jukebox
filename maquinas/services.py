@@ -89,6 +89,42 @@ def relatorio_faturamento(maquina_id=None, inicio=None, fim=None):
     }
 
 
+def leitura_faturamento(maquina, data_inicio=None, data_fim=None):
+    """Leitura de faturamento da jukebox autenticada (aliases para o app)."""
+    base = relatorio_faturamento(
+        maquina_id=maquina.id,
+        inicio=data_inicio,
+        fim=data_fim,
+    )
+    creditos = base['creditos_quantidade']
+    faturamento = base['faturamento_total']
+    tocadas = base['tocadas_quantidade']
+
+    return {
+        'maquina_id': maquina.id,
+        'nome_jukebox': maquina.nome_jukebox,
+        'data_inicio': data_inicio or base.get('inicio'),
+        'data_fim': data_fim or base.get('fim'),
+        'faturamento': faturamento,
+        'faturamento_total': faturamento,
+        'total_faturamento': faturamento,
+        'valor': faturamento,
+        'valor_total': faturamento,
+        'creditos': creditos,
+        'total_creditos': creditos,
+        'creditos_inseridos': creditos,
+        'creditos_quantidade': creditos,
+        'transacoes': creditos,
+        'total_transacoes': creditos,
+        'count': creditos,
+        'quantidade': creditos,
+        'tocadas': tocadas,
+        'tocadas_quantidade': tocadas,
+        'por_origem': base['por_origem'],
+        'por_dia': base['por_dia'],
+    }
+
+
 def relatorio_mais_tocadas(maquina_id=None, inicio=None, fim=None, limit=20):
     maquina_id = coerce_maquina_id(maquina_id)
     queryset = MusicaTocada.objects.all()

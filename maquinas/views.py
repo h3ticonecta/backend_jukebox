@@ -16,7 +16,7 @@ from maquinas.serializers import (
     MusicaTocadaCreateSerializer,
     MusicaTocadaSerializer,
 )
-from maquinas.services import relatorio_faturamento, relatorio_mais_tocadas
+from maquinas.services import leitura_faturamento, relatorio_faturamento, relatorio_mais_tocadas
 
 
 class MaquinaViewSet(viewsets.ModelViewSet):
@@ -144,6 +144,34 @@ class MaquinaViewSet(viewsets.ModelViewSet):
             valor=data.get('valor'),
         )
         return Response(MusicaTocadaSerializer(tocada).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='leitura', permission_classes=[AllowAny])
+    def leitura(self, request):
+        """GET /api/v1/maquinas/leitura/ — faturamento da máquina autenticada."""
+        try:
+            maquina = resolve_maquina(request)
+        except AuthenticationFailed as exc:
+            return Response(
+                {'error': {'code': 'UNAUTHORIZED', 'message': str(exc)}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        data_inicio = (
+            request.query_params.get('data_inicio')
+            or request.query_params.get('inicio')
+            or None
+        )
+        data_fim = (
+            request.query_params.get('data_fim')
+            or request.query_params.get('fim')
+            or None
+        )
+
+        return Response(leitura_faturamento(
+            maquina,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        ))
 
     @action(detail=False, methods=['get'], url_path='relatorio-faturamento')
     def relatorio_faturamento_view(self, request):

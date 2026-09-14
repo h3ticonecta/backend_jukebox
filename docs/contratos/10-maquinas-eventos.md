@@ -24,6 +24,11 @@ Com esses dados o backend monta **faturamento** e **mais tocadas**.
 | App da jukebox | `Authorization: Maquina <token>` (o token de `POST /maquinas/auth/`) |
 | Admin / painel | `Authorization: Token <token-admin>` + `maquina_id` no body/query |
 
+| Endpoint | Auth |
+|---|---|
+| `POST /creditos/`, `POST /tocadas/`, `GET /leitura/` | `Maquina <token>` |
+| `GET /relatorio-faturamento/`, `GET /relatorio-mais-tocadas/` | Token **admin** |
+
 ---
 
 ## 1. Registrar crédito (`POST`)
@@ -96,7 +101,59 @@ Objeto da tocada com `id`, máquina e `created_at`.
 
 ---
 
-## 3. Relatório de faturamento (`GET`)
+## 3. Leitura de faturamento da jukebox (`GET`)
+
+Modal **Leitura de Faturamento** no app da máquina. Retorna totais **somente da máquina autenticada** (não envie `maquina_id`).
+
+```
+GET /api/v1/maquinas/leitura/?data_inicio=2026-09-10&data_fim=2026-09-14
+Authorization: Maquina <token>
+```
+
+| Query | Descrição |
+|---|---|
+| `data_inicio` | Data inicial `YYYY-MM-DD` (opcional; alias: `inicio`) |
+| `data_fim` | Data final `YYYY-MM-DD`, **inclusiva** (opcional; alias: `fim`) |
+
+Omita as duas datas para **todo o período**. Presets (`hoje`, `esta semana`, etc.) são calculados no frontend.
+
+### Response `200`
+
+```json
+{
+  "maquina_id": 1,
+  "nome_jukebox": "Bar Central",
+  "data_inicio": "2026-09-10",
+  "data_fim": "2026-09-14",
+  "faturamento": "45.00",
+  "faturamento_total": "45.00",
+  "total_faturamento": "45.00",
+  "valor": "45.00",
+  "valor_total": "45.00",
+  "creditos": 9,
+  "total_creditos": 9,
+  "creditos_inseridos": 9,
+  "creditos_quantidade": 9,
+  "transacoes": 9,
+  "total_transacoes": 9,
+  "count": 9,
+  "quantidade": 9,
+  "tocadas": 32,
+  "tocadas_quantidade": 32,
+  "por_origem": [{ "origem": "moeda", "total": "45.00", "quantidade": 9 }],
+  "por_dia": [{ "data": "2026-09-10", "total": "10.00", "quantidade": 2 }]
+}
+```
+
+| Campo | Significado |
+|---|---|
+| `faturamento` / `valor` | Soma em R$ dos créditos inseridos (`POST /creditos/`) no período |
+| `creditos` / `transacoes` | Quantidade de registros de crédito (cada inserção de dinheiro = 1) |
+| `tocadas` | Quantidade de músicas escolhidas (`POST /tocadas/`) — informativo, não entra no faturamento |
+
+---
+
+## 4. Relatório de faturamento (`GET`)
 
 Token **admin**.
 
@@ -122,7 +179,7 @@ GET /api/v1/maquinas/relatorio-faturamento/?inicio=2026-09-01&fim=2026-09-30&maq
 
 ---
 
-## 4. Relatório das mais tocadas (`GET`)
+## 5. Relatório das mais tocadas (`GET`)
 
 Token **admin**.
 
@@ -161,5 +218,6 @@ GET /api/v1/maquinas/relatorio-mais-tocadas/?inicio=2026-09-01&fim=2026-09-30&li
 1. POST /maquinas/auth/              → guarda token
 2. Cliente insere R$ 5               → POST /maquinas/creditos/ { valor: 5 }
 3. Cliente escolhe song.mp3          → POST /maquinas/tocadas/ { musica_key, titulo, cover_url, ... }
-4. Painel consulta relatórios        → GET relatorio-faturamento / relatorio-mais-tocadas
+4. Modal Leitura de Faturamento      → GET /maquinas/leitura/?data_inicio=...&data_fim=...
+5. Painel admin consulta relatórios → GET relatorio-faturamento / relatorio-mais-tocadas
 ```
