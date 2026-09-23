@@ -23,7 +23,7 @@ from config.views import health, index
 urlpatterns = [
     path(
         'favicon.ico',
-        RedirectView.as_view(url='/static/config/favicon.png', permanent=True),
+        RedirectView.as_view(url='/static/config/favicon.svg', permanent=True),
     ),
     path('', index, name='index'),
     path('health/', health, name='health'),
