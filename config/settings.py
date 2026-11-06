@@ -22,6 +22,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
 
+
+def _env_csv(name: str, default: str = '') -> list[str]:
+    return [
+        item.strip()
+        for item in os.environ.get(name, default).split(',')
+        if item.strip()
+    ]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -34,23 +43,27 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
-    if host.strip()
-]
+ALLOWED_HOSTS = _env_csv('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 
 railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN')
 if railway_domain:
     ALLOWED_HOSTS.append(railway_domain)
 
-CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
-    if origin.strip()
-]
+# Domínio customizado no Railway (e outros hosts extras), separados por vírgula.
+# RAILWAY_PUBLIC_DOMAIN não inclui o hostname do domínio próprio; defina aqui ou em ALLOWED_HOSTS.
+for host in _env_csv('EXTRA_ALLOWED_HOSTS'):
+    if host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
+
+CSRF_TRUSTED_ORIGINS = _env_csv('CSRF_TRUSTED_ORIGINS')
 if railway_domain:
     CSRF_TRUSTED_ORIGINS.append(f'https://{railway_domain}')
+
+# POST no Admin/API com sessão exige a origem HTTPS do domínio customizado.
+for host in _env_csv('EXTRA_ALLOWED_HOSTS'):
+    origin = f'https://{host}'
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

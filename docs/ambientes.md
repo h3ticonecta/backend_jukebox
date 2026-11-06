@@ -16,12 +16,25 @@ Variáveis configuradas no Railway ou no arquivo `.env` local.
 | `SECRET_KEY` | Sim (produção) | Chave secreta do Django |
 | `DEBUG` | Sim | `True` (local) / `False` (produção) |
 | `ALLOWED_HOSTS` | Não | Hosts permitidos, separados por vírgula |
+| `EXTRA_ALLOWED_HOSTS` | Não | Hostnames extras (ex.: domínio customizado), separados por vírgula; o código acrescenta cada um em `ALLOWED_HOSTS` e `https://<host>/` em `CSRF_TRUSTED_ORIGINS` |
 | `DATABASE_URL` | Sim (produção) | Injetada automaticamente ao vincular PostgreSQL no Railway |
 | `RAILWAY_PUBLIC_DOMAIN` | Não | Injetada pelo Railway; usada para `ALLOWED_HOSTS` e CSRF |
 | `CSRF_TRUSTED_ORIGINS` | Não | Origens confiáveis para CSRF, separadas por vírgula |
 | `DJANGO_SUPERUSER_USERNAME` | Sim (produção) | Usuário do admin criado no deploy |
 | `DJANGO_SUPERUSER_EMAIL` | Não | E-mail do superusuário |
 | `DJANGO_SUPERUSER_PASSWORD` | Sim (produção) | Senha do superusuário (sincronizada a cada deploy) |
+
+### Domínio customizado no Railway
+
+O `RAILWAY_PUBLIC_DOMAIN` cobre o hostname `*.up.railway.app`, **não** o domínio próprio. Ao apontar algo como `paineljukebox.h3ti.com.br` para o serviço, defina no Railway:
+
+```text
+EXTRA_ALLOWED_HOSTS=paineljukebox.h3ti.com.br
+```
+
+(Opcionalmente inclua também em `ALLOWED_HOSTS` na mesma lista, desde que não duplique entradas desnecessariamente — `EXTRA_ALLOWED_HOSTS` já basta para host + CSRF com HTTPS.)
+
+Faça **redeploy** após alterar variáveis.
 
 ## Variáveis para o frontend
 
