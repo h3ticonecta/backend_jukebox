@@ -50,6 +50,7 @@ O login da máquina (`POST /auth/`) devolve um `token` próprio da jukebox, dife
     { "acao": "hits", "label": "HITS", "tecla": "I" },
     { "acao": "fila", "label": "Fila", "tecla": "F" },
     { "acao": "pular", "label": "Pular", "tecla": "P" },
+    { "acao": "tocar_cd", "label": "Tocar CD", "tecla": "C" },
     { "acao": "vol_mais", "label": "Vol+", "tecla": "PgUp" },
     { "acao": "vol_menos", "label": "Vol-", "tecla": "PgDn" },
     { "acao": "cancelar", "label": "Cancelar", "tecla": "Enter" }
@@ -85,6 +86,7 @@ Envie só as ações que mudaram ou a lista completa. `label` é fixo no backend
 | `hits` | HITS | `I` |
 | `fila` | Fila | `F` |
 | `pular` | Pular | `P` |
+| `tocar_cd` | Tocar CD | `C` |
 | `vol_mais` | Vol+ | `PgUp` |
 | `vol_menos` | Vol- | `PgDn` |
 | `cancelar` | Cancelar | `Enter` |
@@ -182,6 +184,7 @@ Authorization: Maquina <token>
 - Token da **máquina** (`/api/v1/maquinas/auth/`) identifica qual jukebox está logada
 - `teclas` vem no login e em `GET /maquinas/config/` — exibir no app; **só o admin altera**
 - Tecla `credito`: o front abre inserção de crédito; confirma com `POST /maquinas/creditos/`
+- Tecla `tocar_cd` (**Tocar CD**): o front enfileira ou toca todas as faixas da pasta/CD selecionado (comportamento no app)
 - Eventos de crédito e música tocada: [contrato 10](./10-maquinas-eventos.md)
 - `usuario` é único
 - Não envie a senha em telas de listagem; ela só entra no cadastro e no login

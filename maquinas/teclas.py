@@ -9,6 +9,7 @@ TECLAS_PADRAO = [
     {'acao': 'hits', 'label': 'HITS', 'tecla': 'I'},
     {'acao': 'fila', 'label': 'Fila', 'tecla': 'F'},
     {'acao': 'pular', 'label': 'Pular', 'tecla': 'P'},
+    {'acao': 'tocar_cd', 'label': 'Tocar CD', 'tecla': 'C'},
     {'acao': 'vol_mais', 'label': 'Vol+', 'tecla': 'PgUp'},
     {'acao': 'vol_menos', 'label': 'Vol-', 'tecla': 'PgDn'},
     {'acao': 'cancelar', 'label': 'Cancelar', 'tecla': 'Enter'},
