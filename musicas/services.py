@@ -484,6 +484,65 @@ def item_from_model(row):
     }
 
 
+def load_playable_folder_paths(bucket_config):
+    return BibliotecaItem.objects.filter(
+        bucket=bucket_config,
+        kind=BibliotecaItem.KIND_FILE,
+        media_type__in=['audio', 'video'],
+    ).values_list('folder_path', flat=True)
+
+
+def compute_folder_counts(folder_paths, playable_folder_paths, root_prefix):
+    """Contagens por pasta sem carregar todos os metadados dos arquivos."""
+    root = normalize_prefix(root_prefix)
+    normalized_folders = [normalize_prefix(path) for path in folder_paths if path]
+    folder_set = set(normalized_folders)
+    counts = {path: {'subfolders': 0, 'files': 0} for path in normalized_folders}
+
+    for folder_path in normalized_folders:
+        direct_subfolders = [
+            other for other in normalized_folders
+            if other != folder_path
+            and other.startswith(folder_path)
+            and other[len(folder_path):].strip('/').count('/') == 0
+        ]
+        counts[folder_path]['subfolders'] = len(direct_subfolders)
+
+    for file_folder in playable_folder_paths:
+        path = normalize_prefix(file_folder)
+        visited = set()
+        while path and path not in visited:
+            visited.add(path)
+            if path in folder_set:
+                counts[path]['files'] += 1
+            parent = get_parent_path(path, root)
+            if parent is None:
+                break
+            path = parent
+
+    return counts
+
+
+def catalog_totals(catalog, folder_paths, playable_folder_paths):
+    """Totais globais para navegação sem busca (sem carregar todo o catálogo)."""
+    totals = {
+        'folders': catalog.folders_count if catalog else len(folder_paths),
+        'files': catalog.files_count if catalog else len(playable_folder_paths),
+        'images': catalog.images_count if catalog else 0,
+        'audio': 0,
+        'video': 0,
+    }
+    if catalog:
+        playable_qs = BibliotecaItem.objects.filter(
+            bucket=catalog.bucket,
+            kind=BibliotecaItem.KIND_FILE,
+            media_type__in=['audio', 'video'],
+        )
+        totals['audio'] = playable_qs.filter(media_type='audio').count()
+        totals['video'] = playable_qs.filter(media_type='video').count()
+    return totals
+
+
 def assemble_browse(
     bucket_config,
     root_prefix,
@@ -494,6 +553,9 @@ def assemble_browse(
     search=None,
     folder_covers_db=None,
     include_nested_tracks=False,
+    folder_counts=None,
+    scope_browse=False,
+    playable_folder_paths=None,
 ):
     folder_paths = sorted({normalize_prefix(path) for path in folder_paths if path}, key=str.lower)
     all_items = sorted(all_items, key=lambda item: item['name'].lower())
@@ -565,23 +627,24 @@ def assemble_browse(
         and folder_path[len(current_prefix):].strip('/').count('/') == 0
     ]
 
-    folder_counts = {}
-    for folder_path in folder_paths:
-        direct_subfolders = [
-            other for other in folder_paths
-            if other != folder_path
-            and other.startswith(folder_path)
-            and other[len(folder_path):].strip('/').count('/') == 0
-        ]
-        files_in_folder = sum(
-            1 for item in playable
-            if item['folder_path'] == folder_path
-            or item['folder_path'].startswith(folder_path)
-        )
-        folder_counts[folder_path] = {
-            'subfolders': len(direct_subfolders),
-            'files': files_in_folder,
-        }
+    if folder_counts is None:
+        folder_counts = {}
+        for folder_path in folder_paths:
+            direct_subfolders = [
+                other for other in folder_paths
+                if other != folder_path
+                and other.startswith(folder_path)
+                and other[len(folder_path):].strip('/').count('/') == 0
+            ]
+            files_in_folder = sum(
+                1 for item in playable
+                if item['folder_path'] == folder_path
+                or item['folder_path'].startswith(folder_path)
+            )
+            folder_counts[folder_path] = {
+                'subfolders': len(direct_subfolders),
+                'files': files_in_folder,
+            }
 
     current_folders = [
         {
@@ -594,6 +657,42 @@ def assemble_browse(
         }
         for folder_path in current_folder_paths
     ]
+
+    if scope_browse:
+        global_totals = catalog_totals(catalog, folder_paths, playable_folder_paths)
+        extras = {
+            'files_list': [],
+            'images_list': current_images,
+            'musicas_list': current_playable,
+            'totals': {
+                **global_totals,
+                'current_folders': len(current_folders),
+                'current_files': len([
+                    item for item in playable if item['folder_path'] == current_prefix
+                ]),
+                'current_musicas': len(current_playable),
+                'current_images': len(current_images),
+            },
+        }
+    else:
+        extras = {
+            'files_list': listed_files,
+            'images_list': all_images,
+            'musicas_list': playable,
+            'totals': {
+                'folders': len(folder_paths),
+                'files': len(playable),
+                'images': len(all_images),
+                'current_folders': len(current_folders),
+                'current_files': len([
+                    item for item in playable if item['folder_path'] == current_prefix
+                ]),
+                'current_musicas': len(current_playable),
+                'current_images': len(current_images),
+                'audio': sum(1 for item in playable if item['media_type'] == 'audio'),
+                'video': sum(1 for item in playable if item['media_type'] == 'video'),
+            },
+        }
 
     return {
         'mode': 'file_manager',
@@ -619,24 +718,9 @@ def assemble_browse(
         'folders': current_folders,
         'files': current_files,
         'images': current_images,
-        'files_list': listed_files,
-        'images_list': all_images,
         'musicas': current_playable,
         'musicas_includes_nested': flatten_musicas,
-        'musicas_list': playable,
-        'totals': {
-            'folders': len(folder_paths),
-            'files': len(playable),
-            'images': len(all_images),
-            'current_folders': len(current_folders),
-            'current_files': len([
-                item for item in playable if item['folder_path'] == current_prefix
-            ]),
-            'current_musicas': len(current_playable),
-            'current_images': len(current_images),
-            'audio': sum(1 for item in playable if item['media_type'] == 'audio'),
-            'video': sum(1 for item in playable if item['media_type'] == 'video'),
-        },
+        **extras,
     }
 
 
@@ -667,12 +751,44 @@ def browse_music_library(bucket_config, prefix=None, search=None, include_nested
             kind=BibliotecaItem.KIND_FOLDER,
         ).values_list('key', flat=True),
     )
+    folder_covers_db = load_folder_covers_from_db(bucket_config)
+    global_search = bool(search and search.strip())
+
+    if global_search:
+        file_rows = BibliotecaItem.objects.filter(
+            bucket=bucket_config,
+            kind=BibliotecaItem.KIND_FILE,
+        )
+        all_items = [item_from_model(row) for row in file_rows]
+        return assemble_browse(
+            bucket_config,
+            root_prefix,
+            current_prefix,
+            folder_paths=folder_paths,
+            all_items=all_items,
+            catalog=catalog,
+            search=search,
+            folder_covers_db=folder_covers_db,
+            include_nested_tracks=include_nested_tracks,
+        )
+
+    flatten_musicas = (
+        include_nested_tracks
+        and include_nested_musicas(current_prefix, root_prefix)
+    )
     file_rows = BibliotecaItem.objects.filter(
         bucket=bucket_config,
         kind=BibliotecaItem.KIND_FILE,
     )
+    if flatten_musicas:
+        file_rows = file_rows.filter(folder_path__startswith=current_prefix)
+    else:
+        file_rows = file_rows.filter(folder_path=current_prefix)
+
     all_items = [item_from_model(row) for row in file_rows]
-    folder_covers_db = load_folder_covers_from_db(bucket_config)
+    playable_folder_paths = list(load_playable_folder_paths(bucket_config))
+    folder_counts = compute_folder_counts(folder_paths, playable_folder_paths, root_prefix)
+
     return assemble_browse(
         bucket_config,
         root_prefix,
@@ -683,6 +799,9 @@ def browse_music_library(bucket_config, prefix=None, search=None, include_nested
         search=search,
         folder_covers_db=folder_covers_db,
         include_nested_tracks=include_nested_tracks,
+        folder_counts=folder_counts,
+        scope_browse=True,
+        playable_folder_paths=playable_folder_paths,
     )
 
 
