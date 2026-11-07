@@ -59,11 +59,17 @@ def _build_maquina_admin_form():
             return instance
 
     for padrao in TECLAS_PADRAO:
-        MaquinaAdminForm.base_fields[f'tecla_{padrao["acao"]}'] = forms.CharField(
-            label=padrao['label'],
-            max_length=32,
-            required=False,
-        )
+        kwargs = {
+            'label': padrao['label'],
+            'max_length': 32,
+            'required': False,
+        }
+        if padrao['acao'] == 'vol':
+            kwargs['help_text'] = (
+                'Um botão físico na máquina: clique aumenta o volume; '
+                'cliques repetidos diminuem; segurar diminui em sequência (lógica no app).'
+            )
+        MaquinaAdminForm.base_fields[f'tecla_{padrao["acao"]}'] = forms.CharField(**kwargs)
 
     return MaquinaAdminForm
 

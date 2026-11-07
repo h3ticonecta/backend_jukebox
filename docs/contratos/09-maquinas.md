@@ -51,8 +51,7 @@ O login da máquina (`POST /auth/`) devolve um `token` próprio da jukebox, dife
     { "acao": "fila", "label": "Fila", "tecla": "F" },
     { "acao": "pular", "label": "Pular", "tecla": "P" },
     { "acao": "tocar_cd", "label": "Tocar CD", "tecla": "C" },
-    { "acao": "vol_mais", "label": "Vol+", "tecla": "PgUp" },
-    { "acao": "vol_menos", "label": "Vol-", "tecla": "PgDn" },
+    { "acao": "vol", "label": "Vol", "tecla": "V" },
     { "acao": "cancelar", "label": "Cancelar", "tecla": "Enter" }
   ],
   "last_login_at": "2026-09-02T16:40:00+00:00",
@@ -87,9 +86,33 @@ Envie só as ações que mudaram ou a lista completa. `label` é fixo no backend
 | `fila` | Fila | `F` |
 | `pular` | Pular | `P` |
 | `tocar_cd` | Tocar CD | `C` |
-| `vol_mais` | Vol+ | `PgUp` |
-| `vol_menos` | Vol- | `PgDn` |
+| `vol` | Vol | `V` |
 | `cancelar` | Cancelar | `Enter` |
+
+`vol_mais` / `vol_menos` são **legado** — na migração viram `vol` (prioridade: tecla de `vol`, senão `vol_mais`, senão `vol_menos`).
+
+### Volume — um botão na máquina (`acao`: `vol`)
+
+Login (`POST /auth/`) e config (`GET /config/`) incluem:
+
+```json
+{
+  "comportamento_volume": {
+    "modo": "unico_botao",
+    "clique_unico": "aumentar",
+    "cliques_repetidos": "diminuir",
+    "pressionar_segurar": "diminuir_continuo"
+  }
+}
+```
+
+| Gestão no app | Efeito sugerido |
+|---|---|
+| Um clique na tecla `vol` | Aumenta o volume |
+| Vários cliques em sequência (debounce no front) | Diminui o volume |
+| Manter pressionado | Diminui o volume de forma contínua |
+
+O backend só define **qual tecla** é `vol`; tempos e limiares ficam no frontend.
 
 ### Schema — criar (`POST`)
 
@@ -133,11 +156,17 @@ Content-Type: application/json
   "teclas": [
     { "acao": "cima", "label": "Cima", "tecla": "Q" },
     { "acao": "credito", "label": "Crédito", "tecla": "K" }
-  ]
+  ],
+  "comportamento_volume": {
+    "modo": "unico_botao",
+    "clique_unico": "aumentar",
+    "cliques_repetidos": "diminuir",
+    "pressionar_segurar": "diminuir_continuo"
+  }
 }
 ```
 
-O front deve guardar `id`, `nome_jukebox`, `token` e `teclas` no dispositivo.
+O front deve guardar `id`, `nome_jukebox`, `token`, `teclas` e `comportamento_volume` no dispositivo.
 
 ---
 
@@ -156,8 +185,15 @@ Authorization: Maquina <token>
   "nome_jukebox": "Bar Central",
   "usuario": "jukebox01",
   "teclas": [
-    { "acao": "credito", "label": "Crédito", "tecla": "K" }
-  ]
+    { "acao": "credito", "label": "Crédito", "tecla": "K" },
+    { "acao": "vol", "label": "Vol", "tecla": "V" }
+  ],
+  "comportamento_volume": {
+    "modo": "unico_botao",
+    "clique_unico": "aumentar",
+    "cliques_repetidos": "diminuir",
+    "pressionar_segurar": "diminuir_continuo"
+  }
 }
 ```
 
@@ -185,6 +221,7 @@ Authorization: Maquina <token>
 - `teclas` vem no login e em `GET /maquinas/config/` — exibir no app; **só o admin altera**
 - Tecla `credito`: o front abre inserção de crédito; confirma com `POST /maquinas/creditos/`
 - Tecla `tocar_cd` (**Tocar CD**): o front enfileira ou toca todas as faixas da pasta/CD selecionado (comportamento no app)
+- Tecla `vol` (**Vol**): um único atalho; use `comportamento_volume` da API para clique / cliques repetidos / segurar
 - Eventos de crédito e música tocada: [contrato 10](./10-maquinas-eventos.md)
 - `usuario` é único
 - Não envie a senha em telas de listagem; ela só entra no cadastro e no login

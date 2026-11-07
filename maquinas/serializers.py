@@ -1,7 +1,13 @@
 from rest_framework import serializers
 
 from maquinas.models import Credito, CreditoOrigem, Maquina, MusicaTocada
-from maquinas.teclas import ACOES_VALIDAS, normalizar_teclas
+from maquinas.teclas import (
+    ACOES_VOLUME_LEGADAS,
+    ACOES_VALIDAS,
+    normalizar_acao,
+    normalizar_teclas,
+    payload_teclas_config,
+)
 
 
 class TeclaSerializer(serializers.Serializer):
@@ -12,6 +18,7 @@ class TeclaSerializer(serializers.Serializer):
 
 class MaquinaSerializer(serializers.ModelSerializer):
     teclas = serializers.SerializerMethodField()
+    comportamento_volume = serializers.SerializerMethodField()
 
     class Meta:
         model = Maquina
@@ -21,14 +28,25 @@ class MaquinaSerializer(serializers.ModelSerializer):
             'usuario',
             'is_active',
             'teclas',
+            'comportamento_volume',
             'last_login_at',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'last_login_at', 'created_at', 'updated_at', 'teclas']
+        read_only_fields = [
+            'id',
+            'last_login_at',
+            'created_at',
+            'updated_at',
+            'teclas',
+            'comportamento_volume',
+        ]
 
     def get_teclas(self, obj):
         return obj.get_teclas()
+
+    def get_comportamento_volume(self, obj):
+        return payload_teclas_config()['comportamento_volume']
 
 
 class MaquinaWriteSerializer(serializers.ModelSerializer):
@@ -65,10 +83,15 @@ class MaquinaWriteSerializer(serializers.ModelSerializer):
             return value
         acoes = []
         for item in value:
-            acao = (item.get('acao') or '').strip()
+            acao = normalizar_acao((item.get('acao') or '').strip())
             if not acao:
                 raise serializers.ValidationError('Cada atalho precisa de "acao".')
             if acao not in ACOES_VALIDAS:
+                legado = (item.get('acao') or '').strip()
+                if legado in ACOES_VOLUME_LEGADAS:
+                    raise serializers.ValidationError(
+                        'Use a ação "vol" no lugar de "vol_mais" / "vol_menos".',
+                    )
                 raise serializers.ValidationError(f'Ação inválida: {acao}')
             tecla = str(item.get('tecla', '')).strip()
             if not tecla:

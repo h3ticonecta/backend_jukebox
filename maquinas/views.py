@@ -17,6 +17,7 @@ from maquinas.serializers import (
     MusicaTocadaSerializer,
 )
 from maquinas.services import leitura_faturamento, relatorio_faturamento, relatorio_mais_tocadas
+from maquinas.teclas import payload_teclas_config
 
 
 class MaquinaViewSet(viewsets.ModelViewSet):
@@ -76,6 +77,7 @@ class MaquinaViewSet(viewsets.ModelViewSet):
             'usuario': maquina.usuario,
             'token': maquina.api_token,
             'teclas': maquina.get_teclas(),
+            **payload_teclas_config(),
         })
 
     @action(detail=False, methods=['get'], url_path='config', permission_classes=[AllowAny])
@@ -94,6 +96,7 @@ class MaquinaViewSet(viewsets.ModelViewSet):
             'nome_jukebox': maquina.nome_jukebox,
             'usuario': maquina.usuario,
             'teclas': maquina.get_teclas(),
+            **payload_teclas_config(),
         })
 
     @action(detail=False, methods=['post'], url_path='creditos', permission_classes=[AllowAny])
