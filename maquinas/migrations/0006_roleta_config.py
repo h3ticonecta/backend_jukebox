@@ -1,13 +1,52 @@
 import django.db.models.deletion
+from decimal import Decimal
+
 from django.db import migrations, models
 
 
-def criar_roleta_maquinas_existentes(apps, schema_editor):
-    Maquina = apps.get_model('maquinas', 'Maquina')
-    from maquinas.roleta_services import get_or_create_roleta_config
+def _seed_faixas_historicas(RoletaFaixaValor, RoletaPremioFaixa, config, faixas):
+    for ordem, faixa in enumerate(faixas):
+        row = RoletaFaixaValor.objects.create(
+            config_id=config.pk,
+            valor=Decimal(faixa['valor']),
+            giros_liberados=faixa['giros_liberados'],
+            ordem=ordem,
+        )
+        for p_ordem, premio in enumerate(faixa['premios']):
+            RoletaPremioFaixa.objects.create(
+                faixa_id=row.pk,
+                tipo=premio['tipo'],
+                quantidade=premio['quantidade'],
+                peso=premio['peso'],
+                ordem=p_ordem,
+            )
 
+
+def criar_roleta_maquinas_existentes(apps, schema_editor):
+    """Usa modelos históricos — não chamar roleta_services na migração."""
+    Maquina = apps.get_model('maquinas', 'Maquina')
+    RoletaConfig = apps.get_model('maquinas', 'RoletaConfig')
+    RoletaFaixaValor = apps.get_model('maquinas', 'RoletaFaixaValor')
+    RoletaPremioFaixa = apps.get_model('maquinas', 'RoletaPremioFaixa')
+    from maquinas.roleta_defaults import (
+        DEFAULT_FAIXAS,
+        DEFAULT_PROBABILIDADES,
+        DEFAULT_REGRAS,
+    )
+
+    defaults = {**DEFAULT_PROBABILIDADES, **DEFAULT_REGRAS}
     for maquina in Maquina.objects.all().iterator():
-        get_or_create_roleta_config(maquina)
+        config, created = RoletaConfig.objects.get_or_create(
+            maquina_id=maquina.pk,
+            defaults=defaults,
+        )
+        if created:
+            _seed_faixas_historicas(
+                RoletaFaixaValor,
+                RoletaPremioFaixa,
+                config,
+                DEFAULT_FAIXAS,
+            )
 
 
 class Migration(migrations.Migration):
