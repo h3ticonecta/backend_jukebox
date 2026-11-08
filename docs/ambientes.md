@@ -24,9 +24,13 @@ Variáveis configuradas no Railway ou no arquivo `.env` local.
 | `DJANGO_SUPERUSER_EMAIL` | Não | E-mail do superusuário |
 | `DJANGO_SUPERUSER_PASSWORD` | Sim (produção) | Senha do superusuário (sincronizada a cada deploy) |
 
+### `ALLOWED_HOSTS` e hostname Railway
+
+O código já inclui `backendjukebox-dev.up.railway.app` em `ALLOWED_HOSTS` (e em `CSRF_TRUSTED_ORIGINS` com HTTPS), para evitar `400 DisallowedHost` em chamadas diretas a essa URL — mesmo quando `RAILWAY_PUBLIC_DOMAIN` não vem preenchida ou vem com outro valor.
+
 ### Domínio customizado no Railway
 
-O `RAILWAY_PUBLIC_DOMAIN` cobre o hostname `*.up.railway.app`, **não** o domínio próprio. Ao apontar algo como `paineljukebox.h3ti.com.br` para o serviço, defina no Railway:
+O `RAILWAY_PUBLIC_DOMAIN` **não** substitui o domínio próprio apontado no DNS. Ao expor algo como `paineljukebox.h3ti.com.br` (produção do painel/API), defina no Railway:
 
 ```text
 EXTRA_ALLOWED_HOSTS=paineljukebox.h3ti.com.br

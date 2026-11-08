@@ -50,8 +50,15 @@ if railway_domain:
     ALLOWED_HOSTS.append(railway_domain)
 
 # Domínio customizado no Railway (e outros hosts extras), separados por vírgula.
-# RAILWAY_PUBLIC_DOMAIN não inclui o hostname do domínio próprio; defina aqui ou em ALLOWED_HOSTS.
+# RAILWAY_PUBLIC_DOMAIN não inclui o domínio próprio (ex.: paineljukebox.h3ti.com.br).
 for host in _env_csv('EXTRA_ALLOWED_HOSTS'):
+    if host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
+
+# Hostname estável do serviço dev no Railway (curl, Admin, testes diretos).
+# RAILWAY_PUBLIC_DOMAIN pode estar ausente ou diferente no deploy.
+DEFAULT_DEPLOY_HOSTS = ('backendjukebox-dev.up.railway.app',)
+for host in DEFAULT_DEPLOY_HOSTS:
     if host not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(host)
 
@@ -61,6 +68,11 @@ if railway_domain:
 
 # POST no Admin/API com sessão exige a origem HTTPS do domínio customizado.
 for host in _env_csv('EXTRA_ALLOWED_HOSTS'):
+    origin = f'https://{host}'
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
+
+for host in DEFAULT_DEPLOY_HOSTS:
     origin = f'https://{host}'
     if origin not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(origin)

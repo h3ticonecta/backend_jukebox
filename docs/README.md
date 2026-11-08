@@ -39,6 +39,8 @@ Este repositório contém o **backend** do projeto Jukebox, construído com **Dj
 https://backendjukebox-dev.up.railway.app
 ```
 
+Esse hostname está em `ALLOWED_HOSTS` no Django (`config/settings.py`). Testes com `curl` ou Admin nessa URL não devem retornar `DisallowedHost`. Produção do painel costuma usar `paineljukebox.h3ti.com.br` — configure `EXTRA_ALLOWED_HOSTS` no Railway para esse domínio.
+
 ## Contato
 
 Dúvidas sobre contratos ou novos endpoints: alinhar com o time de backend antes de implementar no frontend.
