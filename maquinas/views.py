@@ -16,7 +16,12 @@ from maquinas.serializers import (
     MusicaTocadaCreateSerializer,
     MusicaTocadaSerializer,
 )
-from maquinas.services import leitura_faturamento, relatorio_faturamento, relatorio_mais_tocadas
+from maquinas.services import (
+    leitura_faturamento,
+    painel_administrativo,
+    relatorio_faturamento,
+    relatorio_mais_tocadas,
+)
 from maquinas.teclas import payload_teclas_config
 
 
@@ -174,6 +179,23 @@ class MaquinaViewSet(viewsets.ModelViewSet):
             maquina,
             data_inicio=data_inicio,
             data_fim=data_fim,
+        ))
+
+    @action(detail=False, methods=['get'], url_path='painel-administrativo')
+    def painel_administrativo_view(self, request):
+        """GET /api/v1/maquinas/painel-administrativo/ — dashboard do painel admin (SPA #/admin)."""
+        return Response(painel_administrativo(
+            maquina_id=request.query_params.get('maquina_id'),
+            inicio=(
+                request.query_params.get('inicio')
+                or request.query_params.get('data_inicio')
+            ),
+            fim=(
+                request.query_params.get('fim')
+                or request.query_params.get('data_fim')
+            ),
+            periodo=request.query_params.get('periodo') or request.query_params.get('preset'),
+            status=request.query_params.get('status'),
         ))
 
     @action(detail=False, methods=['get'], url_path='relatorio-faturamento')

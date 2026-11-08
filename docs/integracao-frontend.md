@@ -22,6 +22,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 | [Músicas File Manager](./contratos/06-musicas-listar.md) | `GET /api/v1/musicas/` | Navegar biblioteca (admin ou token da máquina); upload/move/delete só admin |
 | [Máquinas](./contratos/09-maquinas.md) | `/api/v1/maquinas/` | Cadastrar jukebox e vincular com usuário/senha |
 | [Eventos e relatórios](./contratos/10-maquinas-eventos.md) | `/api/v1/maquinas/creditos/` | Créditos, músicas tocadas, faturamento e ranking |
+| [Painel administrativo](./contratos/11-painel-administrativo.md) | `GET /api/v1/maquinas/painel-administrativo/` | Dashboard `jukebox.h3ti.com.br/#/admin` |
 
 ## 3. Fluxo de autenticação
 

@@ -21,6 +21,7 @@
 | 08 | `POST` | `/api/v1/musicas/{id}/upload/` | [08-musicas-upload.md](./08-musicas-upload.md) | Implementado |
 | 09 | `CRUD` | `/api/v1/maquinas/` | [09-maquinas.md](./09-maquinas.md) | Implementado |
 | 10 | `POST/GET` | `/api/v1/maquinas/creditos/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) | Implementado |
+| 11 | `GET` | `/api/v1/maquinas/painel-administrativo/` | [11-painel-administrativo.md](./11-painel-administrativo.md) | Implementado |
 
 > Contratos 07 e 08 (CRUD/upload legado) foram substituídos pelo **06** (file manager).
 
