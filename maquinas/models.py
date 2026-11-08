@@ -120,3 +120,137 @@ class MusicaTocada(models.Model):
 
     def __str__(self):
         return f'{self.titulo or self.musica_nome} ({self.maquina})'
+
+
+class RoletaConfig(models.Model):
+    """Configuração da roleta — uma por máquina."""
+
+    maquina = models.OneToOneField(
+        Maquina,
+        on_delete=models.CASCADE,
+        related_name='roleta_config',
+        verbose_name='máquina',
+    )
+    ativada = models.BooleanField('roleta ativada', default=False)
+    peso_premio_mais_2_musicas = models.PositiveIntegerField(
+        '+2 músicas grátis (peso)',
+        default=1,
+    )
+    peso_premio_mais_1_musica = models.PositiveIntegerField(
+        '+1 música grátis (peso)',
+        default=5,
+    )
+    peso_bonus_recarga_50pct = models.PositiveIntegerField(
+        '50% bônus recarga (peso)',
+        default=1,
+    )
+    peso_tente_novamente = models.PositiveIntegerField(
+        'Tente novamente (peso)',
+        default=40,
+    )
+    peso_nao_foi_dessa_vez = models.PositiveIntegerField(
+        'Não foi dessa vez (peso)',
+        default=30,
+    )
+    creditos_minimos_girar = models.PositiveIntegerField(
+        'créditos mínimos para girar',
+        default=5,
+        help_text='Quantidade de créditos comprados para liberar a roleta.',
+    )
+    max_premio_mais_2_musicas_dia_percent = models.PositiveSmallIntegerField(
+        'máx. prêmios "+2 músicas" por dia (%)',
+        default=10,
+        help_text='Limite de sessões que podem ganhar +2 músicas (% do total diário).',
+    )
+    created_at = models.DateTimeField('criado em', auto_now_add=True)
+    updated_at = models.DateTimeField('atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'configuração da roleta'
+        verbose_name_plural = 'configurações da roleta'
+
+    def __str__(self):
+        return f'Roleta — {self.maquina.nome_jukebox}'
+
+    @property
+    def pesos_probabilidade(self):
+        return (
+            self.peso_premio_mais_2_musicas
+            + self.peso_premio_mais_1_musica
+            + self.peso_bonus_recarga_50pct
+            + self.peso_tente_novamente
+            + self.peso_nao_foi_dessa_vez
+        )
+
+    @property
+    def pesos_usuario_ganha(self):
+        return (
+            self.peso_premio_mais_2_musicas
+            + self.peso_premio_mais_1_musica
+            + self.peso_bonus_recarga_50pct
+        )
+
+
+class RoletaFaixaValor(models.Model):
+    """Faixa de valor inserido (ex.: R$ 5,00) com giros liberados."""
+
+    config = models.ForeignKey(
+        RoletaConfig,
+        on_delete=models.CASCADE,
+        related_name='faixas',
+        verbose_name='configuração',
+    )
+    valor = models.DecimalField('valor (R$)', max_digits=10, decimal_places=2)
+    giros_liberados = models.PositiveIntegerField('giros liberados', default=1)
+    ordem = models.PositiveIntegerField('ordem', default=0)
+    created_at = models.DateTimeField('criado em', auto_now_add=True)
+    updated_at = models.DateTimeField('atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'faixa de valor da roleta'
+        verbose_name_plural = 'faixas de valor da roleta'
+        ordering = ['ordem', 'valor']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['config', 'valor'],
+                name='uniq_roleta_faixa_config_valor',
+            ),
+        ]
+
+    def __str__(self):
+        return f'R$ {self.valor} — {self.giros_liberados} giro(s)'
+
+
+class RoletaPremioFaixa(models.Model):
+    """Prêmio possível dentro de uma faixa de valor (roleta ponderada)."""
+
+    class TipoPremio(models.TextChoices):
+        MUSICA_GRATIS = 'musica_gratis', 'Música grátis'
+        GIRO_EXTRA = 'giro_extra', 'Giro extra'
+        SEM_PREMIO = 'sem_premio', 'Sem prêmio'
+
+    faixa = models.ForeignKey(
+        RoletaFaixaValor,
+        on_delete=models.CASCADE,
+        related_name='premios',
+        verbose_name='faixa',
+    )
+    tipo = models.CharField(
+        'tipo',
+        max_length=32,
+        choices=TipoPremio.choices,
+        default=TipoPremio.MUSICA_GRATIS,
+    )
+    quantidade = models.PositiveIntegerField('quantidade', default=1)
+    peso = models.PositiveIntegerField('peso', default=10)
+    ordem = models.PositiveIntegerField('ordem', default=0)
+    created_at = models.DateTimeField('criado em', auto_now_add=True)
+    updated_at = models.DateTimeField('atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'prêmio da faixa'
+        verbose_name_plural = 'prêmios da faixa'
+        ordering = ['ordem', 'id']
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} × {self.quantidade} (peso {self.peso})'

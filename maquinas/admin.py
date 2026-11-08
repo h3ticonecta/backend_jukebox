@@ -5,7 +5,14 @@ from django.forms.widgets import PasswordInput
 from django.template.response import TemplateResponse
 from django.urls import path
 
-from maquinas.models import Credito, Maquina, MusicaTocada
+from maquinas.models import (
+    Credito,
+    Maquina,
+    MusicaTocada,
+    RoletaConfig,
+    RoletaFaixaValor,
+    RoletaPremioFaixa,
+)
 from maquinas.services import relatorio_faturamento, relatorio_mais_tocadas
 from maquinas.teclas import TECLAS_PADRAO
 
@@ -77,9 +84,38 @@ def _build_maquina_admin_form():
 MaquinaAdminForm = _build_maquina_admin_form()
 
 
+class RoletaConfigInline(admin.StackedInline):
+    model = RoletaConfig
+    can_delete = False
+    max_num = 1
+    verbose_name = 'Configuração da Roleta'
+    verbose_name_plural = 'Configuração da Roleta'
+    fieldsets = (
+        (None, {
+            'fields': ('ativada',),
+        }),
+        ('Probabilidades (pesos)', {
+            'fields': (
+                'peso_premio_mais_2_musicas',
+                'peso_premio_mais_1_musica',
+                'peso_bonus_recarga_50pct',
+                'peso_tente_novamente',
+                'peso_nao_foi_dessa_vez',
+            ),
+        }),
+        ('Regras', {
+            'fields': (
+                'creditos_minimos_girar',
+                'max_premio_mais_2_musicas_dia_percent',
+            ),
+        }),
+    )
+
+
 @admin.register(Maquina)
 class MaquinaAdmin(admin.ModelAdmin):
     form = MaquinaAdminForm
+    inlines = [RoletaConfigInline]
     list_display = (
         'nome_jukebox',
         'usuario',
@@ -151,6 +187,66 @@ class MaquinaAdmin(admin.ModelAdmin):
             'mais_tocadas': mais_tocadas,
         }
         return TemplateResponse(request, 'admin/maquinas/relatorios.html', context)
+
+    def save_formset(self, request, form, formset, change):
+        super().save_formset(request, form, formset, change)
+        from maquinas.roleta_services import get_or_create_roleta_config
+
+        if form.instance.pk:
+            get_or_create_roleta_config(form.instance)
+
+
+class RoletaPremioFaixaInline(admin.TabularInline):
+    model = RoletaPremioFaixa
+    extra = 0
+    fields = ('tipo', 'quantidade', 'peso', 'ordem')
+
+
+class RoletaFaixaValorInline(admin.StackedInline):
+    model = RoletaFaixaValor
+    extra = 0
+    fields = ('valor', 'giros_liberados', 'ordem')
+    show_change_link = True
+
+
+@admin.register(RoletaConfig)
+class RoletaConfigAdmin(admin.ModelAdmin):
+    list_display = ('maquina', 'ativada', 'creditos_minimos_girar', 'updated_at')
+    list_filter = ('ativada',)
+    search_fields = ('maquina__nome_jukebox', 'maquina__usuario')
+    inlines = [RoletaFaixaValorInline]
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        (None, {
+            'fields': ('maquina', 'ativada'),
+        }),
+        ('Probabilidades (pesos)', {
+            'fields': (
+                'peso_premio_mais_2_musicas',
+                'peso_premio_mais_1_musica',
+                'peso_bonus_recarga_50pct',
+                'peso_tente_novamente',
+                'peso_nao_foi_dessa_vez',
+            ),
+        }),
+        ('Regras', {
+            'fields': (
+                'creditos_minimos_girar',
+                'max_premio_mais_2_musicas_dia_percent',
+            ),
+        }),
+        ('Auditoria', {
+            'fields': ('created_at', 'updated_at'),
+        }),
+    )
+
+
+@admin.register(RoletaFaixaValor)
+class RoletaFaixaValorAdmin(admin.ModelAdmin):
+    list_display = ('config', 'valor', 'giros_liberados', 'ordem')
+    list_filter = ('config__maquina',)
+    search_fields = ('config__maquina__nome_jukebox',)
+    inlines = [RoletaPremioFaixaInline]
 
 
 @admin.register(Credito)

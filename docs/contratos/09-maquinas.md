@@ -32,6 +32,7 @@ O login da máquina (`POST /auth/`) devolve um `token` próprio da jukebox, dife
 | `GET` | `/api/v1/maquinas/{id}/` | Detalhar |
 | `PUT` / `PATCH` | `/api/v1/maquinas/{id}/` | Atualizar |
 | `DELETE` | `/api/v1/maquinas/{id}/` | Remover |
+| `GET` / `PUT` / `PATCH` | `/api/v1/maquinas/{id}/roleta/` | Configuração da roleta — [contrato 12](./12-roleta.md) |
 
 ### Schema — leitura
 

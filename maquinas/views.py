@@ -22,6 +22,12 @@ from maquinas.services import (
     relatorio_faturamento,
     relatorio_mais_tocadas,
 )
+from maquinas.roleta_serializers import RoletaConfigWriteSerializer
+from maquinas.roleta_services import (
+    get_or_create_roleta_config,
+    roleta_config_payload,
+    update_roleta_config,
+)
 from maquinas.teclas import payload_teclas_config
 
 
@@ -180,6 +186,46 @@ class MaquinaViewSet(viewsets.ModelViewSet):
             data_inicio=data_inicio,
             data_fim=data_fim,
         ))
+
+    @action(detail=True, methods=['get', 'put', 'patch'], url_path='roleta')
+    def roleta_maquina(self, request, pk=None):
+        """GET/PUT/PATCH /api/v1/maquinas/{id}/roleta/ — configuração da roleta (admin)."""
+        maquina = self.get_object()
+        config = get_or_create_roleta_config(maquina)
+        if request.method == 'GET':
+            return Response(roleta_config_payload(config))
+
+        partial = request.method == 'PATCH'
+        serializer = RoletaConfigWriteSerializer(data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        try:
+            update_roleta_config(maquina, serializer.validated_data)
+        except ValueError as exc:
+            return Response(
+                {'error': {'code': 'VALIDATION_ERROR', 'message': str(exc)}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        config = get_or_create_roleta_config(maquina)
+        return Response(roleta_config_payload(config))
+
+    @action(detail=False, methods=['get'], url_path='roleta', permission_classes=[AllowAny])
+    def roleta_jukebox(self, request):
+        """GET /api/v1/maquinas/roleta/ — roleta da máquina autenticada."""
+        try:
+            maquina = resolve_maquina(request)
+        except AuthenticationFailed as exc:
+            return Response(
+                {'error': {'code': 'UNAUTHORIZED', 'message': str(exc)}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        config = get_or_create_roleta_config(maquina)
+        if not config.ativada:
+            return Response({
+                'ativada': False,
+                'maquina_id': maquina.id,
+                'nome_jukebox': maquina.nome_jukebox,
+            })
+        return Response(roleta_config_payload(config))
 
     @action(detail=False, methods=['get'], url_path='painel-administrativo')
     def painel_administrativo_view(self, request):

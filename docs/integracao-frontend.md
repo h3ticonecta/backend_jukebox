@@ -23,6 +23,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 | [Máquinas](./contratos/09-maquinas.md) | `/api/v1/maquinas/` | Cadastrar jukebox e vincular com usuário/senha |
 | [Eventos e relatórios](./contratos/10-maquinas-eventos.md) | `/api/v1/maquinas/creditos/` | Créditos, músicas tocadas, faturamento e ranking |
 | [Painel administrativo](./contratos/11-painel-administrativo.md) | `GET /api/v1/maquinas/painel-administrativo/` | Dashboard `jukebox.h3ti.com.br/#/admin` |
+| [Roleta](./contratos/12-roleta.md) | `GET/PUT/PATCH /api/v1/maquinas/{id}/roleta/` | Configuração da roleta por máquina |
 
 ## 3. Fluxo de autenticação
 
