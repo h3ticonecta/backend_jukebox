@@ -31,4 +31,5 @@ urlpatterns = [
     path('api/v1/', include('buckets.urls')),
     path('api/v1/', include('musicas.urls')),
     path('api/v1/', include('maquinas.urls')),
+    path('api/v1/', include('pagamentos.urls')),
 ]

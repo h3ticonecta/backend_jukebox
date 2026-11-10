@@ -27,6 +27,7 @@ Este repositório contém o **backend** do projeto Jukebox, construído com **Dj
 | Módulo Músicas (`/api/v1/musicas/`) | Implementado |
 | Módulo Máquinas (`/api/v1/maquinas/`) | Implementado |
 | Configuração da Roleta (por máquina) | Implementado — [contrato 12](./contratos/12-roleta.md) |
+| PIX QR Code (Mercado Pago) | Implementado — [contrato 13](./contratos/13-pix-mercadopago.md) |
 | Autenticação por Token (`/api/v1/auth/token/`) | Implementado |
 | PostgreSQL (produção) | Implementado |
 | Deploy Railway | Implementado |

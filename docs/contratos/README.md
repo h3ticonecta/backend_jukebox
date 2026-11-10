@@ -23,6 +23,7 @@
 | 10 | `POST/GET` | `/api/v1/maquinas/creditos/` | [10-maquinas-eventos.md](./10-maquinas-eventos.md) | Implementado |
 | 11 | `GET` | `/api/v1/maquinas/painel-administrativo/` | [11-painel-administrativo.md](./11-painel-administrativo.md) | Implementado |
 | 12 | `GET/PUT/PATCH` | `/api/v1/maquinas/{id}/roleta/` | [12-roleta.md](./12-roleta.md) | Implementado |
+| 13 | `POST` | `/api/v1/pagamentos/pix/qrcode/` | [13-pix-mercadopago.md](./13-pix-mercadopago.md) | Implementado |
 
 > Contratos 07 e 08 (CRUD/upload legado) foram substituídos pelo **06** (file manager).
 

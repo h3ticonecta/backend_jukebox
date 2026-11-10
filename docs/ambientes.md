@@ -23,6 +23,11 @@ Variáveis configuradas no Railway ou no arquivo `.env` local.
 | `DJANGO_SUPERUSER_USERNAME` | Sim (produção) | Usuário do admin criado no deploy |
 | `DJANGO_SUPERUSER_EMAIL` | Não | E-mail do superusuário |
 | `DJANGO_SUPERUSER_PASSWORD` | Sim (produção) | Senha do superusuário (sincronizada a cada deploy) |
+| `MERCADOPAGO_ACCESS_TOKEN` | Não* | Token MP (alternativa ao cadastro no Admin) |
+| `MERCADOPAGO_NOTIFICATION_URL` | Não | URL completa do webhook PIX |
+| `MERCADOPAGO_WEBHOOK_BASE_URL` | Não | Base pública do backend (ex.: `https://paineljukebox.h3ti.com.br`) |
+
+\* Obrigatório para PIX: **Admin → Contas Mercado Pago** ou esta variável.
 
 ### `ALLOWED_HOSTS` e hostname Railway
 

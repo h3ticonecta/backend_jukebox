@@ -99,6 +99,7 @@ INSTALLED_APPS = [
     'buckets.apps.BucketsConfig',
     'musicas.apps.MusicasConfig',
     'maquinas.apps.MaquinasConfig',
+    'pagamentos.apps.PagamentosConfig',
 ]
 
 MIDDLEWARE = [
@@ -239,3 +240,7 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
+
+MERCADOPAGO_ACCESS_TOKEN = os.environ.get('MERCADOPAGO_ACCESS_TOKEN', '').strip()
+MERCADOPAGO_NOTIFICATION_URL = os.environ.get('MERCADOPAGO_NOTIFICATION_URL', '').strip()
+MERCADOPAGO_WEBHOOK_BASE_URL = os.environ.get('MERCADOPAGO_WEBHOOK_BASE_URL', '').strip()
