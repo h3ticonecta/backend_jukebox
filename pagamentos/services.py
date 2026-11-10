@@ -1,5 +1,4 @@
 import logging
-import re
 from datetime import timedelta
 from decimal import Decimal
 
@@ -15,7 +14,7 @@ from pagamentos.mercadopago_client import (
     criar_pagamento_pix,
     webhook_base_url,
 )
-from pagamentos.models import MercadoPagoConfig, PixCobranca
+from pagamentos.models import DEFAULT_MP_PAYER_EMAIL, MercadoPagoConfig, PixCobranca
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +58,22 @@ def notification_url(config):
     return f'{base}/api/v1/pagamentos/webhook/mercadopago/'
 
 
-def payer_email(maquina):
-    slug = re.sub(r'[^a-zA-Z0-9]', '', maquina.usuario or str(maquina.pk))[:32]
-    return f'jukebox-{maquina.id}-{slug}@cliente.jukebox'
+def resolve_payer_email(config, payer_email_override=None):
+    """Mercado Pago exige payer.email válido (domínio real)."""
+    override = (payer_email_override or '').strip()
+    if override and '@' in override:
+        return override
+
+    if config and getattr(config, 'email_pagador_padrao', None):
+        email = str(config.email_pagador_padrao).strip()
+        if email:
+            return email
+
+    env_email = (getattr(settings, 'MERCADOPAGO_PAYER_EMAIL', None) or '').strip()
+    if env_email:
+        return env_email
+
+    return DEFAULT_MP_PAYER_EMAIL
 
 
 def map_mp_status(mp_status):
@@ -118,7 +130,7 @@ def pix_cobranca_payload(cobranca):
     }
 
 
-def criar_cobranca_pix(maquina, valor, descricao=None):
+def criar_cobranca_pix(maquina, valor, descricao=None, payer_email_override=None):
     if valor <= 0:
         raise PagamentoServiceError('Valor deve ser maior que zero.', 'INVALID_AMOUNT')
 
@@ -144,7 +156,7 @@ def criar_cobranca_pix(maquina, valor, descricao=None):
             description=description,
             external_reference=str(cobranca.external_reference),
             notification_url=notif,
-            payer_email=payer_email(maquina),
+            payer_email=resolve_payer_email(config, payer_email_override),
             idempotency_key=str(cobranca.external_reference),
         )
     except PagamentoServiceError as exc:

@@ -24,10 +24,12 @@ Gera **QR Code PIX** (copia e cola + imagem base64) usando a **conta Mercado Pag
 1. **Admin Django** → **Pagamentos** → **Contas Mercado Pago** → cadastre o **access token** (produção ou teste).
 2. No [painel Mercado Pago](https://www.mercadopago.com.br/developers), configure o webhook:
    - `https://<seu-backend>/api/v1/pagamentos/webhook/mercadopago/`
-3. Variáveis opcionais (Railway `.env`):
+3. **E-mail do pagador** — Mercado Pago exige `payer.email` válido. Padrão: `gustavo.santos@h3ti.com.br` (Admin → campo *E-mail padrão do pagador* ou `MERCADOPAGO_PAYER_EMAIL`).
+4. Variáveis opcionais (Railway `.env`):
    - `MERCADOPAGO_ACCESS_TOKEN`
    - `MERCADOPAGO_NOTIFICATION_URL`
    - `MERCADOPAGO_WEBHOOK_BASE_URL` (ex.: `https://paineljukebox.h3ti.com.br`)
+   - `MERCADOPAGO_PAYER_EMAIL`
 
 ---
 
@@ -41,9 +43,12 @@ Authorization: Maquina <token>
 ```json
 {
   "valor": 5.00,
-  "descricao": "Créditos jukebox"
+  "descricao": "Créditos jukebox",
+  "payer_email": "gustavo.santos@h3ti.com.br"
 }
 ```
+
+`payer_email` é opcional; se omitido, usa o e-mail padrão da conta MP / ambiente.
 
 Admin com token Django pode enviar `maquina_id` no body.
 

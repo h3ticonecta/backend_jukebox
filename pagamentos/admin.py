@@ -37,6 +37,10 @@ class MercadoPagoConfigAdmin(admin.ModelAdmin):
                 'Informe a mesma URL no painel do Mercado Pago (notificações IPN/Webhooks).'
             ),
         }),
+        ('PIX', {
+            'fields': ('email_pagador_padrao',),
+            'description': 'E-mail técnico enviado como payer.email ao Mercado Pago (obrigatório e válido).',
+        }),
     )
 
 

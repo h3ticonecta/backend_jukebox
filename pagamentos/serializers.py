@@ -6,6 +6,11 @@ from pagamentos.models import MercadoPagoConfig, PixCobranca
 class PixCobrancaCreateSerializer(serializers.Serializer):
     valor = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
     descricao = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    payer_email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+        help_text='Opcional; se omitido, usa o e-mail padrão da conta Mercado Pago.',
+    )
     maquina_id = serializers.IntegerField(required=False)
 
 
@@ -20,6 +25,7 @@ class MercadoPagoConfigSerializer(serializers.ModelSerializer):
             'usar_sandbox',
             'is_active',
             'webhook_url',
+            'email_pagador_padrao',
             'created_at',
             'updated_at',
         ]
@@ -37,6 +43,7 @@ class MercadoPagoConfigWriteSerializer(serializers.ModelSerializer):
             'usar_sandbox',
             'is_active',
             'webhook_url',
+            'email_pagador_padrao',
         ]
 
     def validate(self, attrs):

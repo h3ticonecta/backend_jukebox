@@ -5,6 +5,9 @@ from django.db import models
 from maquinas.models import Credito, Maquina
 
 
+DEFAULT_MP_PAYER_EMAIL = 'gustavo.santos@h3ti.com.br'
+
+
 class MercadoPagoConfig(models.Model):
     """Credenciais da conta Mercado Pago (PIX)."""
 
@@ -28,6 +31,12 @@ class MercadoPagoConfig(models.Model):
         max_length=512,
         blank=True,
         help_text='Opcional. Se vazio, usa a URL pública do backend + /api/v1/pagamentos/webhook/mercadopago/',
+    )
+    email_pagador_padrao = models.EmailField(
+        'e-mail padrão do pagador',
+        max_length=254,
+        default=DEFAULT_MP_PAYER_EMAIL,
+        help_text='Obrigatório para a API do Mercado Pago (payer.email). Não use o usuário da jukebox.',
     )
     created_at = models.DateTimeField('criado em', auto_now_add=True)
     updated_at = models.DateTimeField('atualizado em', auto_now=True)

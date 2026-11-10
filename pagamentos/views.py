@@ -64,6 +64,7 @@ class PixCobrancaViewSet(viewsets.ReadOnlyModelViewSet):
                 maquina,
                 serializer.validated_data['valor'],
                 descricao=serializer.validated_data.get('descricao') or '',
+                payer_email_override=serializer.validated_data.get('payer_email') or None,
             )
         except PagamentoServiceError as exc:
             code = status.HTTP_503_SERVICE_UNAVAILABLE if exc.code == 'MP_NOT_CONFIGURED' else status.HTTP_400_BAD_REQUEST
