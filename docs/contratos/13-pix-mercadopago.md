@@ -18,6 +18,7 @@ Gera **QR Code PIX** (copia e cola + imagem base64) usando a **conta Mercado Pag
 |---|---|
 | `MercadoPagoConfig` | Access token e opções da conta MP (Admin) |
 | `PixCobranca` | Cobrança, QR, status e vínculo com `Credito` |
+| `PixCreditoOpcao` | Valor PIX → quantidade de créditos — [contrato 14](./14-pix-creditos-config.md) |
 
 ## Configuração
 
@@ -63,6 +64,7 @@ Admin com token Django pode enviar `maquina_id` no body.
   "mp_payment_id": 123456789,
   "valor": "5.00",
   "valor_numero": 5.0,
+  "quantidade_creditos": 5,
   "status": "pendente",
   "qr_code": "00020126....",
   "qr_code_base64": "iVBORw0KGgo...",

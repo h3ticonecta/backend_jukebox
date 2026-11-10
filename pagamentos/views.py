@@ -9,16 +9,18 @@ from rest_framework.views import APIView
 
 from maquinas.auth import resolve_maquina
 from pagamentos.exceptions import PagamentoServiceError
-from pagamentos.models import MercadoPagoConfig, PixCobranca
+from pagamentos.models import MercadoPagoConfig, PixCreditoOpcao, PixCobranca
 from pagamentos.serializers import (
     MercadoPagoConfigSerializer,
     MercadoPagoConfigWriteSerializer,
     PixCobrancaCreateSerializer,
     PixCobrancaListSerializer,
+    PixCreditoOpcaoSerializer,
 )
 from pagamentos.services import (
     criar_cobranca_pix,
     pix_cobranca_payload,
+    pix_credito_opcoes_payload,
     processar_webhook_mp,
     sincronizar_cobranca,
 )
@@ -29,6 +31,52 @@ def payment_error_response(exc, status_code=status.HTTP_400_BAD_REQUEST):
         {'error': {'code': exc.code, 'message': exc.message}},
         status=status_code,
     )
+
+
+class PixCreditoOpcaoViewSet(viewsets.ModelViewSet):
+    """Configuração valor PIX → quantidade de créditos (global)."""
+
+    queryset = PixCreditoOpcao.objects.all()
+    serializer_class = PixCreditoOpcaoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if getattr(self, 'action', None) in ('list', 'retrieve', 'opcoes'):
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = PixCreditoOpcao.objects.all().order_by('ordem', 'valor_pix')
+        if self.action == 'opcoes':
+            return qs.filter(ativo=True)
+        if not self.request.user.is_authenticated:
+            return qs.filter(ativo=True)
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            try:
+                resolve_maquina(request)
+            except AuthenticationFailed as exc:
+                return Response(
+                    {'error': {'code': 'UNAUTHORIZED', 'message': str(exc)}},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+        return super().list(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get'], url_path='opcoes', permission_classes=[AllowAny])
+    def opcoes(self, request):
+        """GET /api/v1/pagamentos/pix-creditos/opcoes/ — valores ativos para o modal PIX."""
+        if not request.user.is_authenticated:
+            try:
+                resolve_maquina(request)
+            except AuthenticationFailed as exc:
+                return Response(
+                    {'error': {'code': 'UNAUTHORIZED', 'message': str(exc)}},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+
+        return Response({'opcoes': pix_credito_opcoes_payload()})
 
 
 class MercadoPagoConfigViewSet(viewsets.ModelViewSet):

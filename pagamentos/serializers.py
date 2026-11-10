@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from pagamentos.models import MercadoPagoConfig, PixCobranca
+from pagamentos.models import MercadoPagoConfig, PixCreditoOpcao, PixCobranca
 
 
 class PixCobrancaCreateSerializer(serializers.Serializer):
@@ -12,6 +12,27 @@ class PixCobrancaCreateSerializer(serializers.Serializer):
         help_text='Opcional; se omitido, usa o e-mail padrão da conta Mercado Pago.',
     )
     maquina_id = serializers.IntegerField(required=False)
+
+
+class PixCreditoOpcaoSerializer(serializers.ModelSerializer):
+    valor_pix_numero = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PixCreditoOpcao
+        fields = [
+            'id',
+            'valor_pix',
+            'valor_pix_numero',
+            'quantidade_creditos',
+            'ordem',
+            'ativo',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_valor_pix_numero(self, obj):
+        return float(obj.valor_pix)
 
 
 class MercadoPagoConfigSerializer(serializers.ModelSerializer):

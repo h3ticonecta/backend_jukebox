@@ -7,6 +7,32 @@ from maquinas.models import Credito, Maquina
 
 DEFAULT_MP_PAYER_EMAIL = 'gustavo.santos@h3ti.com.br'
 
+class PixCreditoOpcao(models.Model):
+    """Valor PIX oferecido na jukebox e quantidade de créditos concedidos ao pagar."""
+
+    valor_pix = models.DecimalField(
+        'valor PIX (R$)',
+        max_digits=10,
+        decimal_places=2,
+        unique=True,
+    )
+    quantidade_creditos = models.PositiveIntegerField(
+        'quantidade de créditos',
+        help_text='Créditos inseridos na máquina quando o PIX deste valor for aprovado.',
+    )
+    ordem = models.PositiveSmallIntegerField('ordem', default=0)
+    ativo = models.BooleanField('ativo', default=True)
+    created_at = models.DateTimeField('criado em', auto_now_add=True)
+    updated_at = models.DateTimeField('atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'configuração créditos'
+        verbose_name_plural = 'créditos (configuração)'
+        ordering = ['ordem', 'valor_pix']
+
+    def __str__(self):
+        return f'R$ {self.valor_pix} → {self.quantidade_creditos} crédito(s)'
+
 
 class MercadoPagoConfig(models.Model):
     """Credenciais da conta Mercado Pago (PIX)."""
@@ -89,6 +115,12 @@ class PixCobranca(models.Model):
         db_index=True,
     )
     valor = models.DecimalField('valor (R$)', max_digits=10, decimal_places=2)
+    creditos_concedidos = models.PositiveIntegerField(
+        'créditos concedidos',
+        null=True,
+        blank=True,
+        help_text='Quantidade definida na configuração no momento da cobrança.',
+    )
     descricao = models.CharField('descrição', max_length=255, blank=True)
     status = models.CharField(
         'status',

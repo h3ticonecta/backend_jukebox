@@ -14,7 +14,12 @@ from pagamentos.mercadopago_client import (
     criar_pagamento_pix,
     webhook_base_url,
 )
-from pagamentos.models import DEFAULT_MP_PAYER_EMAIL, MercadoPagoConfig, PixCobranca
+from pagamentos.models import (
+    DEFAULT_MP_PAYER_EMAIL,
+    MercadoPagoConfig,
+    PixCreditoOpcao,
+    PixCobranca,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +61,29 @@ def notification_url(config):
     if not base:
         return ''
     return f'{base}/api/v1/pagamentos/webhook/mercadopago/'
+
+
+def quantidade_creditos_para_valor_pix(valor):
+    """Créditos configurados para o valor PIX; fallback 1 crédito por R$ 1,00 arredondado."""
+    valor_dec = Decimal(valor).quantize(Decimal('0.01'))
+    opcao = PixCreditoOpcao.objects.filter(valor_pix=valor_dec, ativo=True).first()
+    if opcao:
+        return opcao.quantidade_creditos
+    return max(1, int(valor_dec))
+
+
+def pix_credito_opcoes_payload():
+    opcoes = PixCreditoOpcao.objects.filter(ativo=True).order_by('ordem', 'valor_pix')
+    return [
+        {
+            'id': o.id,
+            'valor_pix': f'{o.valor_pix:.2f}',
+            'valor_pix_numero': float(o.valor_pix),
+            'quantidade_creditos': o.quantidade_creditos,
+            'ordem': o.ordem,
+        }
+        for o in opcoes
+    ]
 
 
 def resolve_payer_email(config, payer_email_override=None):
@@ -119,6 +147,7 @@ def pix_cobranca_payload(cobranca):
         'mp_payment_id': cobranca.mp_payment_id,
         'valor': f'{cobranca.valor:.2f}',
         'valor_numero': float(cobranca.valor),
+        'quantidade_creditos': cobranca.creditos_concedidos,
         'status': cobranca.status,
         'qr_code': cobranca.qr_code,
         'qr_code_base64': cobranca.qr_code_base64,
@@ -141,10 +170,12 @@ def criar_cobranca_pix(maquina, valor, descricao=None, payer_email_override=None
     description = descricao or f'Crédito jukebox — {maquina.nome_jukebox}'
     notif = notification_url(config)
 
+    creditos = quantidade_creditos_para_valor_pix(valor)
     cobranca = PixCobranca.objects.create(
         maquina=maquina,
         config=config if config.pk else None,
         valor=Decimal(valor),
+        creditos_concedidos=creditos,
         descricao=description[:255],
         status=PixCobranca.Status.PENDENTE,
     )
@@ -192,11 +223,16 @@ def registrar_credito_pix(cobranca):
     if cobranca.status != PixCobranca.Status.APROVADO:
         return None
 
+    qtd = cobranca.creditos_concedidos
+    if qtd is None:
+        qtd = quantidade_creditos_para_valor_pix(cobranca.valor)
     credito = Credito.objects.create(
         maquina=cobranca.maquina,
-        valor=cobranca.valor,
+        valor=Decimal(qtd),
         origem=CreditoOrigem.PIX,
-        observacao=f'PIX MP #{cobranca.mp_payment_id or cobranca.id}',
+        observacao=(
+            f'PIX R$ {cobranca.valor} → {qtd} crédito(s) — MP #{cobranca.mp_payment_id or cobranca.id}'
+        ),
     )
     cobranca.credito = credito
     cobranca.approved_at = cobranca.approved_at or timezone.now()

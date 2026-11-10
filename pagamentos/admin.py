@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.forms.widgets import PasswordInput
 
-from pagamentos.models import MercadoPagoConfig, PixCobranca
+from pagamentos.models import MercadoPagoConfig, PixCreditoOpcao, PixCobranca
 
 
 class MercadoPagoConfigAdminForm(forms.ModelForm):
@@ -44,12 +44,22 @@ class MercadoPagoConfigAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(PixCreditoOpcao)
+class PixCreditoOpcaoAdmin(admin.ModelAdmin):
+    list_display = ('valor_pix', 'quantidade_creditos', 'ordem', 'ativo', 'updated_at')
+    list_editable = ('quantidade_creditos', 'ordem', 'ativo')
+    list_filter = ('ativo',)
+    ordering = ('ordem', 'valor_pix')
+    search_fields = ('valor_pix',)
+
+
 @admin.register(PixCobranca)
 class PixCobrancaAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'maquina',
         'valor',
+        'creditos_concedidos',
         'status',
         'mp_payment_id',
         'credito',
