@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import timedelta
 from decimal import Decimal
@@ -15,6 +16,15 @@ from pagamentos.mercadopago_client import (
     webhook_base_url,
 )
 from pagamentos.models import MercadoPagoConfig, PixCobranca
+
+logger = logging.getLogger(__name__)
+
+
+def notificacao_e_pagamento(topic):
+    if not topic:
+        return True
+    base = str(topic).lower().strip().split('.')[0]
+    return base == 'payment'
 
 
 def get_mercadopago_config():
@@ -203,13 +213,26 @@ def sincronizar_cobranca(cobranca):
 
 
 def processar_webhook_mp(*, payment_id=None, topic=None):
-    if topic and topic != 'payment':
-        return None
+    if topic and not notificacao_e_pagamento(topic):
+        return {'ignored': True, 'message': f'Tópico ignorado: {topic}'}
     if not payment_id:
         raise PagamentoServiceError('Notificação sem ID de pagamento.', 'WEBHOOK_INVALID')
 
     config = get_mercadopago_config()
-    mp_body = consultar_pagamento(config.access_token, payment_id)
+    try:
+        mp_body = consultar_pagamento(config.access_token, payment_id)
+    except PagamentoServiceError as exc:
+        logger.warning(
+            'Webhook MP: não foi possível consultar pagamento %s (%s).',
+            payment_id,
+            exc.code,
+        )
+        return {
+            'ignored': True,
+            'payment_id': payment_id,
+            'code': exc.code,
+            'message': exc.message,
+        }
 
     cobranca = PixCobranca.objects.filter(mp_payment_id=payment_id).first()
     if cobranca is None:

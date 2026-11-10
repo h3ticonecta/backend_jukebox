@@ -104,6 +104,8 @@ POST /api/v1/pagamentos/webhook/mercadopago/?topic=payment&id=123456789
 
 Sem autenticação (MP chama o servidor). Ao aprovar, cria `Credito` e preenche `credito_id` na cobrança.
 
+O endpoint responde **`200 OK`** mesmo em teste do painel MP (ID fictício `123456`) ou pagamento sem cobrança local — corpo com `received: true` e opcionalmente `ignored: true`.
+
 ---
 
 ## 5. CRUD conta MP (admin)

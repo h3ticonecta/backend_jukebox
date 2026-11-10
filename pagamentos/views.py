@@ -1,3 +1,5 @@
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed
@@ -122,34 +124,54 @@ class PixCobrancaViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(pix_cobranca_payload(cobranca))
 
 
+def extrair_webhook_mercadopago(request):
+    query = request.query_params
+    topic = query.get('topic') or query.get('type')
+    payment_id = query.get('id') or query.get('data.id')
+
+    body = request.data if isinstance(request.data, dict) else {}
+    if not payment_id:
+        data = body.get('data') if isinstance(body.get('data'), dict) else {}
+        payment_id = data.get('id')
+    if not topic:
+        topic = body.get('type') or body.get('action')
+
+    try:
+        payment_id = int(payment_id) if payment_id is not None and payment_id != '' else None
+    except (TypeError, ValueError):
+        payment_id = None
+
+    return payment_id, topic
+
+
+@method_decorator(csrf_exempt, name='dispatch')
 class MercadoPagoWebhookView(APIView):
+    """Mercado Pago exige HTTP 2xx; testes usam ID fictício (ex.: 123456)."""
     permission_classes = [AllowAny]
     authentication_classes = []
 
     def post(self, request):
-        query = request.query_params
-        topic = query.get('topic') or query.get('type')
-        payment_id = query.get('id') or query.get('data.id')
-
-        body = request.data if isinstance(request.data, dict) else {}
-        if not payment_id and body.get('data', {}).get('id'):
-            payment_id = body['data']['id']
-        if not topic:
-            topic = body.get('type') or body.get('action')
-
-        try:
-            payment_id = int(payment_id) if payment_id else None
-        except (TypeError, ValueError):
-            payment_id = None
+        payment_id, topic = extrair_webhook_mercadopago(request)
 
         try:
             result = processar_webhook_mp(payment_id=payment_id, topic=topic)
         except PagamentoServiceError as exc:
-            return payment_error_response(exc)
+            return Response(
+                {
+                    'received': True,
+                    'ignored': True,
+                    'error': {'code': exc.code, 'message': exc.message},
+                },
+                status=status.HTTP_200_OK,
+            )
 
+        payload = {'received': True}
         if result and result.get('ignored'):
-            return Response({'received': True, 'ignored': True})
-        return Response({'received': True, 'cobranca': result})
+            payload['ignored'] = True
+            payload['detail'] = result
+        elif result:
+            payload['cobranca'] = result
+        return Response(payload, status=status.HTTP_200_OK)
 
     def get(self, request):
         """Mercado Pago também pode chamar via GET em alguns fluxos."""
