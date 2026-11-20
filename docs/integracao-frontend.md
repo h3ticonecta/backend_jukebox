@@ -102,6 +102,43 @@ CORS_ALLOWED_ORIGINS=https://seu-frontend.up.railway.app,http://localhost:5173
 - [ ] Implementar autenticação via token (`/api/v1/auth/token/`)
 - [ ] Implementar gestão de buckets conforme contratos 04 e 05
 - [ ] Tratar erros de rede (API offline)
+- [ ] Atualizar teclas da máquina via `GET /api/v1/maquinas/config/` no login, a cada ~5 min e ao focar a janela (comparar `updated_at`)
+
+### Teclas da máquina (sincronização)
+
+```typescript
+const TECLAS_POLL_MS = 5 * 60 * 1000;
+
+export function startMaquinaConfigSync(
+  getToken: () => string | null,
+  getUpdatedAt: () => string | null,
+  onConfig: (data: { teclas: unknown[]; updated_at: string }) => void,
+) {
+  const pull = async () => {
+    const token = getToken();
+    if (!token) return;
+    const res = await fetch(`${API_BASE_URL}/api/v1/maquinas/config/`, {
+      headers: { Authorization: `Maquina ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const prev = getUpdatedAt();
+    if (!prev || data.updated_at !== prev) {
+      onConfig({ teclas: data.teclas, updated_at: data.updated_at });
+    }
+  };
+
+  const interval = window.setInterval(pull, TECLAS_POLL_MS);
+  window.addEventListener('focus', pull);
+  void pull();
+  return () => {
+    window.clearInterval(interval);
+    window.removeEventListener('focus', pull);
+  };
+}
+```
+
+Ver [Máquinas — contrato 09](./contratos/09-maquinas.md).
 
 ## 8. Testar manualmente
 

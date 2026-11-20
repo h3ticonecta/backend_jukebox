@@ -88,6 +88,7 @@ class MaquinaViewSet(viewsets.ModelViewSet):
             'usuario': maquina.usuario,
             'token': maquina.api_token,
             'teclas': maquina.get_teclas(),
+            'updated_at': maquina.updated_at,
             **payload_teclas_config(),
         })
 
@@ -107,6 +108,7 @@ class MaquinaViewSet(viewsets.ModelViewSet):
             'nome_jukebox': maquina.nome_jukebox,
             'usuario': maquina.usuario,
             'teclas': maquina.get_teclas(),
+            'updated_at': maquina.updated_at,
             **payload_teclas_config(),
         })
 

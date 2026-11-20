@@ -76,6 +76,15 @@ def _build_maquina_admin_form():
                 'Um botão físico na máquina: clique aumenta o volume; '
                 'cliques repetidos diminuem; segurar diminui em sequência (lógica no app).'
             )
+        elif padrao['acao'] == 'tocar_cd':
+            kwargs['help_text'] = (
+                'No app: toca/enfileira o CD ou pasta selecionada (telas álbuns/faixas). '
+                'Letra única ou Enter/PgUp/PgDn; maiúsculas e minúsculas são equivalentes.'
+            )
+        elif padrao['acao'] == 'credito':
+            kwargs['help_text'] = (
+                'No app: abre inserção de crédito (também registrável via API).'
+            )
         MaquinaAdminForm.base_fields[f'tecla_{padrao["acao"]}'] = forms.CharField(**kwargs)
 
     return MaquinaAdminForm
@@ -135,7 +144,11 @@ class MaquinaAdmin(admin.ModelAdmin):
         }),
         ('Teclas', {
             'fields': tuple(f'tecla_{t["acao"]}' for t in TECLAS_PADRAO),
-            'description': 'Atalhos exibidos no app da jukebox. O front usa estas teclas; crédito pode ser inserido pela tecla ou pela API.',
+            'description': (
+                'Cada ação (incluindo Tocar CD) usa a tecla definida aqui. '
+                'Salve a máquina e atualize o app da jukebox (recarregar ou novo login); '
+                'o app também pode buscar mudanças em GET /api/v1/maquinas/config/.'
+            ),
         }),
         ('Vinculação', {
             'fields': ('api_token', 'last_login_at'),

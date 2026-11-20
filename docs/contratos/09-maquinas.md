@@ -163,11 +163,12 @@ Content-Type: application/json
     "clique_unico": "aumentar",
     "cliques_repetidos": "diminuir",
     "pressionar_segurar": "diminuir_continuo"
-  }
+  },
+  "updated_at": "2026-03-20T12:00:00Z"
 }
 ```
 
-O front deve guardar `id`, `nome_jukebox`, `token`, `teclas` e `comportamento_volume` no dispositivo.
+O front deve guardar `id`, `nome_jukebox`, `token`, `teclas`, `comportamento_volume` e `updated_at` no dispositivo.
 
 ---
 
@@ -194,7 +195,8 @@ Authorization: Maquina <token>
     "clique_unico": "aumentar",
     "cliques_repetidos": "diminuir",
     "pressionar_segurar": "diminuir_continuo"
-  }
+  },
+  "updated_at": "2026-03-20T12:00:00Z"
 }
 ```
 
@@ -220,6 +222,7 @@ Authorization: Maquina <token>
 - Token do **admin** (`/api/v1/auth/token/`) gerencia o cadastro
 - Token da **máquina** (`/api/v1/maquinas/auth/`) identifica qual jukebox está logada
 - `teclas` vem no login e em `GET /maquinas/config/` — exibir no app; **só o admin altera**
+- Após alterar teclas no admin, chame `GET /maquinas/config/` de tempos em tempos (ex.: a cada 5 min) e ao focar a janela; se `updated_at` mudou, substitua `teclas` no estado/localStorage
 - Tecla `credito`: o front abre inserção de crédito; confirma com `POST /maquinas/creditos/`
 - Tecla `tocar_cd` (**Tocar CD**): o front enfileira ou toca todas as faixas da pasta/CD selecionado (comportamento no app)
 - Tecla `vol` (**Vol**): um único atalho; use `comportamento_volume` da API para clique / cliques repetidos / segurar
