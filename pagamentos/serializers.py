@@ -12,6 +12,12 @@ class PixCobrancaCreateSerializer(serializers.Serializer):
         help_text='Opcional; se omitido, usa o e-mail padrão da conta Mercado Pago.',
     )
     maquina_id = serializers.IntegerField(required=False)
+    expiracao_segundos = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=30 * 24 * 3600,
+        help_text='Validade do PIX no Mercado Pago. Padrão: 300 (5 min); o MP exige ≥ 30 min.',
+    )
 
 
 class PixCreditoOpcaoSerializer(serializers.ModelSerializer):

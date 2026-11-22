@@ -12,6 +12,7 @@ from pagamentos.exceptions import PagamentoServiceError
 from pagamentos.mercadopago_client import (
     consultar_pagamento,
     criar_pagamento_pix,
+    normalizar_expiracao_segundos,
     webhook_base_url,
 )
 from pagamentos.models import (
@@ -153,13 +154,17 @@ def pix_cobranca_payload(cobranca):
         'qr_code_base64': cobranca.qr_code_base64,
         'ticket_url': cobranca.ticket_url,
         'expires_at': cobranca.expires_at.isoformat() if cobranca.expires_at else None,
+        'expiracao_segundos': getattr(cobranca, '_expiracao_segundos', None),
+        'expiracao_segundos_mp': getattr(cobranca, '_expiracao_segundos_mp', None),
         'credito_id': cobranca.credito_id,
         'created_at': cobranca.created_at.isoformat(),
         'approved_at': cobranca.approved_at.isoformat() if cobranca.approved_at else None,
     }
 
 
-def criar_cobranca_pix(maquina, valor, descricao=None, payer_email_override=None):
+def criar_cobranca_pix(
+    maquina, valor, descricao=None, payer_email_override=None, expiracao_segundos=None
+):
     if valor <= 0:
         raise PagamentoServiceError('Valor deve ser maior que zero.', 'INVALID_AMOUNT')
 
@@ -170,6 +175,7 @@ def criar_cobranca_pix(maquina, valor, descricao=None, payer_email_override=None
     description = descricao or f'Crédito jukebox — {maquina.nome_jukebox}'
     notif = notification_url(config)
 
+    solicitado, segundos_mp = normalizar_expiracao_segundos(expiracao_segundos)
     creditos = quantidade_creditos_para_valor_pix(valor)
     cobranca = PixCobranca.objects.create(
         maquina=maquina,
@@ -189,6 +195,7 @@ def criar_cobranca_pix(maquina, valor, descricao=None, payer_email_override=None
             notification_url=notif,
             payer_email=resolve_payer_email(config, payer_email_override),
             idempotency_key=str(cobranca.external_reference),
+            expiracao_segundos=expiracao_segundos,
         )
     except PagamentoServiceError as exc:
         cobranca.status = PixCobranca.Status.ERRO
@@ -206,7 +213,9 @@ def criar_cobranca_pix(maquina, valor, descricao=None, payer_email_override=None
     cobranca.raw_response = mp_body
     cobranca.expires_at = parse_mp_datetime(
         (mp_body.get('date_of_expiration')),
-    ) or (timezone.now() + timedelta(minutes=30))
+    ) or (timezone.now() + timedelta(seconds=segundos_mp))
+    cobranca._expiracao_segundos = solicitado
+    cobranca._expiracao_segundos_mp = segundos_mp
     cobranca.save()
 
     if cobranca.status == PixCobranca.Status.APROVADO:

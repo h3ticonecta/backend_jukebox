@@ -1,13 +1,42 @@
 import logging
+from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from django.conf import settings
+from django.utils import timezone
 
 from pagamentos.exceptions import PagamentoServiceError
 
 logger = logging.getLogger(__name__)
 
 MP_API_BASE = 'https://api.mercadopago.com'
+MP_TZ = ZoneInfo('America/Sao_Paulo')
+
+
+def format_date_of_expiration(dt):
+    """ISO 8601 com offset para o Mercado Pago (ex.: 2026-11-22T17:30:00.000-03:00)."""
+    local = dt.astimezone(MP_TZ)
+    base = local.strftime('%Y-%m-%dT%H:%M:%S.000')
+    offset = local.strftime('%z')
+    if len(offset) == 5:
+        offset = f'{offset[:3]}:{offset[3:]}'
+    return f'{base}{offset}'
+
+
+def normalizar_expiracao_segundos(expiracao_segundos):
+    """
+    Retorna (solicitado, segundos_enviados_ao_mp).
+    O MP exige no mínimo 30 minutos na date_of_expiration do PIX.
+    """
+    default = int(getattr(settings, 'MERCADOPAGO_PIX_EXPIRACAO_SEGUNDOS', 300))
+    solicitado = default if expiracao_segundos is None else int(expiracao_segundos)
+    if solicitado < 1:
+        solicitado = default
+    min_mp = int(getattr(settings, 'MERCADOPAGO_PIX_EXPIRACAO_MIN_SEGUNDOS', 30 * 60))
+    max_mp = int(getattr(settings, 'MERCADOPAGO_PIX_EXPIRACAO_MAX_SEGUNDOS', 30 * 86400))
+    enviado = max(min_mp, min(solicitado, max_mp))
+    return solicitado, enviado
 
 
 def mp_headers(access_token, idempotency_key=None):
@@ -29,7 +58,10 @@ def criar_pagamento_pix(
     notification_url,
     payer_email,
     idempotency_key,
+    expiracao_segundos=None,
 ):
+    _, segundos_mp = normalizar_expiracao_segundos(expiracao_segundos)
+    expira_em = timezone.now() + timedelta(seconds=segundos_mp)
     payload = {
         'transaction_amount': float(valor),
         'description': description[:255],
@@ -37,6 +69,7 @@ def criar_pagamento_pix(
         'external_reference': external_reference,
         'notification_url': notification_url,
         'payer': {'email': payer_email},
+        'date_of_expiration': format_date_of_expiration(expira_em),
     }
     headers = mp_headers(access_token, idempotency_key=idempotency_key)
     try:

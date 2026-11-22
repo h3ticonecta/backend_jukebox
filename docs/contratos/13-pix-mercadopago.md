@@ -31,6 +31,7 @@ Gera **QR Code PIX** (copia e cola + imagem base64) usando a **conta Mercado Pag
    - `MERCADOPAGO_NOTIFICATION_URL`
    - `MERCADOPAGO_WEBHOOK_BASE_URL` (ex.: `https://paineljukebox.h3ti.com.br`)
    - `MERCADOPAGO_PAYER_EMAIL`
+   - `MERCADOPAGO_PIX_EXPIRACAO_SEGUNDOS` (padrão `300`)
 
 ---
 
@@ -45,11 +46,15 @@ Authorization: Maquina <token>
 {
   "valor": 5.00,
   "descricao": "Créditos jukebox",
-  "payer_email": "gustavo.santos@h3ti.com.br"
+  "payer_email": "gustavo.santos@h3ti.com.br",
+  "expiracao_segundos": 300
 }
 ```
 
-`payer_email` é opcional; se omitido, usa o e-mail padrão da conta MP / ambiente.
+| Campo | Descrição |
+|---|---|
+| `payer_email` | Opcional; e-mail padrão da conta MP / ambiente se omitido |
+| `expiracao_segundos` | Validade do código PIX no MP. Padrão **300** (5 min). O Mercado Pago **não aceita menos de 30 minutos** — o backend envia `date_of_expiration` com no mínimo **1800** s; use `expires_at` na resposta para o contador da UI |
 
 Admin com token Django pode enviar `maquina_id` no body.
 
@@ -70,6 +75,8 @@ Admin com token Django pode enviar `maquina_id` no body.
   "qr_code_base64": "iVBORw0KGgo...",
   "ticket_url": "https://www.mercadopago.com.br/...",
   "expires_at": "2026-09-02T16:30:00+00:00",
+  "expiracao_segundos": 300,
+  "expiracao_segundos_mp": 1800,
   "credito_id": null,
   "created_at": "2026-09-02T16:00:00+00:00",
   "approved_at": null
